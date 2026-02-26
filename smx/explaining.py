@@ -2,8 +2,7 @@ from typing import Dict, List, Tuple, Optional, Union, Callable, Literal
 import warnings
 import pandas as pd
 import numpy as np
-from sklearn.base import accuracy_score
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, accuracy_score
 
 def extract_spectral_zones(Xcal, cuts):
     """

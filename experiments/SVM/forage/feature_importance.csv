@@ -14,10 +14,10 @@ Al;Rayleight scattering;Al;Mn;Rayleight scattering
 Ti kb;background2;sum Fe;Compton scattering;Al
 Ni;Ti kb;Ni;S;background3
 Mn;background1;Ti kb;sum Fe;Ti kb
-Compton scattering;Ti ka;background3;Ti kb;P
-background3;Mn;Compton scattering;Al;Mn
-Rayleight scattering;P;background4;Ni;S
-background4;Ca kb;Rayleight scattering;Rayleight scattering;Ni
+Compton scattering;Ti ka;background3;Ni;P
+background3;Mn;Compton scattering;Rayleight scattering;Mn
+Rayleight scattering;P;background4;Ti kb;S
+background4;Ca kb;Rayleight scattering;Al;Ni
 background1;Fe kb;background1;background2;background2
 background2;Ni;background2;background1;background1
 ;;;;

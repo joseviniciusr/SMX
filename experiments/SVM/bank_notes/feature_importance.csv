@@ -11,7 +11,7 @@ background3;background1;background3;Ca kb;Ag ka scattering
 Ca kb;background3;Cu kb;Cu kb;background3
 background1;Fe kb;background1;background1;Zn ka
 Zn ka;Cu kb;Ar ka + Ag L;Ar ka + Ag L;background1
-Ar ka + Ag L;Zn kb;Zn ka;Zn ka;background2
-;Ar ka + Ag L;background2;Zn kb;Ar ka + Ag L
-background2;Zn ka;Zn kb;background2;Zn kb
+Ar ka + Ag L;Zn kb;Zn ka;Zn ka;Ar ka + Ag L
+;Ar ka + Ag L;Zn kb;Zn kb;background2
+background2;Zn ka;background2;background2;Zn kb
 Zn kb;;;;
