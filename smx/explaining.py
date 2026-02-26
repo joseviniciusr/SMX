@@ -68,86 +68,86 @@ def extract_spectral_zones(Xcal, cuts):
 
 def aggregate_spectral_zones(spectral_zones_dict, aggregator='sum'):
     """
-    Agrega os valores das zonas espectrais usando diferentes funções de agregação.
+    Aggregate spectral zone values using different aggregation functions.
     
-    Esta função processa cada zona espectral (DataFrame com múltiplas colunas de energia)
-    e reduz cada linha (amostra) a um único valor numérico usando a função de agregação
-    especificada.
+    This function processes each spectral zone (DataFrame with multiple energy columns)
+    and reduces each row (sample) to a single numerical value using the specified
+    aggregation function.
     
     Parameters
     ----------
     - **spectral_zones_dict** : dict
-        Dicionário retornado por extract_spectral_zones, onde:
-        - chaves = nomes das zonas espectrais (ex: 'Ca ka', 'Fe ka')
-        - valores = DataFrames com dados espectrais (linhas=amostras, colunas=energias)
+        Dictionary returned by extract_spectral_zones, where:
+        - keys = spectral zone names (e.g., 'Ca ka', 'Fe ka')
+        - values = DataFrames with spectral data (rows=samples, columns=energies)
     
-    - **aggregator** : str, opcional (padrão='sum')
-        Função de agregação a aplicar nas colunas de cada zona. Opções:
-        - **'sum'**: Soma de todos os valores da zona (padrão)
-        - **'mean'**: Média aritmética dos valores
-        - **'median'**: Mediana dos valores
-        - **'max'**: Valor máximo na zona
-        - **'min'**: Valor mínimo na zona
-        - **'std'**: Desvio padrão dos valores
-        - **'var'**: Variância dos valores
-        - **'extreme'**: Valor de maior magnitude (mais intenso) na zona, ou seja,
-          escolhe o valor com maior valor absoluto em cada amostra (pode ser positivo ou negativo)
+    - **aggregator** : str, optional (default='sum')
+        Aggregation function to apply across the columns of each zone. Options:
+        - **'sum'**: Sum of all values in the zone (default)
+        - **'mean'**: Arithmetic mean of the values
+        - **'median'**: Median of the values
+        - **'max'**: Maximum value in the zone
+        - **'min'**: Minimum value in the zone
+        - **'std'**: Standard deviation of the values
+        - **'var'**: Variance of the values
+        - **'extreme'**: Value of greatest magnitude (most intense) in the zone, i.e.,
+          selects the value with the largest absolute value per sample (may be positive or negative)
     
     Returns
     -------
     - **aggregated_df** : pd.DataFrame
-        DataFrame com valores agregados, onde:
-        - linhas = amostras (mesmo índice dos DataFrames originais)
-        - colunas = zonas espectrais
-        - valores = resultado da agregação (mesmo formato que .sum(axis=1))
+        DataFrame with aggregated values, where:
+        - rows = samples (same index as the original DataFrames)
+        - columns = spectral zones
+        - values = aggregation result (same format as .sum(axis=1))
     
     Raises
     ------
     - ValueError
-        Se o agregador especificado não for reconhecido.
+        If the specified aggregator is not recognized.
     """
     import pandas as pd
     import numpy as np
     
-    # VALIDAÇÃO DE ENTRADA
+    # INPUT VALIDATION
     valid_aggregators = ['sum', 'mean', 'median', 'max', 'min', 'std', 'var', 'extreme']
     
     if aggregator not in valid_aggregators:
         raise ValueError(
-            f"Agregador '{aggregator}' não reconhecido.\n"
-            f"Opções válidas: {', '.join(valid_aggregators)}"
+            f"Aggregator '{aggregator}' not recognized.\n"
+            f"Valid options: {', '.join(valid_aggregators)}"
         )
     
-    # MAPEAMENTO DOS AGREGADORES
-    # Dicionário que mapeia strings para funções do pandas
+    # AGGREGATOR MAPPING
+    # Dictionary mapping strings to pandas aggregation functions
     aggregation_functions = {
-        'sum': lambda df: df.sum(axis=1),        # soma ao longo das colunas
-        'mean': lambda df: df.mean(axis=1),      # média
-        'median': lambda df: df.median(axis=1),  # mediana
-        'max': lambda df: df.max(axis=1),        # valor máximo
-        'min': lambda df: df.min(axis=1),        # valor mínimo
-        'std': lambda df: df.std(axis=1),        # desvio padrão
-        'var': lambda df: df.var(axis=1),        # variância
-        # 'extreme': escolhe o valor com maior magnitude (abs), preservando o sinal
+        'sum': lambda df: df.sum(axis=1),        # sum across columns
+        'mean': lambda df: df.mean(axis=1),      # arithmetic mean
+        'median': lambda df: df.median(axis=1),  # median
+        'max': lambda df: df.max(axis=1),        # maximum value
+        'min': lambda df: df.min(axis=1),        # minimum value
+        'std': lambda df: df.std(axis=1),        # standard deviation
+        'var': lambda df: df.var(axis=1),        # variance
+        # 'extreme': selects the value with the greatest magnitude (abs), preserving the sign
         'extreme': lambda df: df.apply(
             lambda row: (row.loc[row.abs().idxmax()] if row.notna().any() else np.nan),
             axis=1
         ),
     }
     
-    # AGREGAÇÃO DAS ZONAS ESPECTRAIS
-    aggregated_dict = {}  # dicionário para armazenar resultados
+    # SPECTRAL ZONE AGGREGATION
+    aggregated_dict = {}  # dictionary to store results
     
     for zone_name, zone_df in spectral_zones_dict.items():
-        # Aplica a função de agregação selecionada
-        # O resultado é uma Series (mesma estrutura que .sum(axis=1))
+        # Apply the selected aggregation function
+        # The result is a Series (same structure as .sum(axis=1))
         aggregated_series = aggregation_functions[aggregator](zone_df)
         
-        # Armazena no dicionário
+        # Store in dictionary
         aggregated_dict[zone_name] = aggregated_series
     
-    # CONSTRUÇÃO DO DATAFRAME FINAL
-    # Cada chave vira uma coluna, preservando os índices originais
+    # FINAL DATAFRAME CONSTRUCTION
+    # Each key becomes a column, preserving the original indices
         aggregated_df = pd.DataFrame(aggregated_dict)    
     return aggregated_df
 
@@ -254,140 +254,140 @@ def predicates_by_quantiles(zone_sums_df, quantiles):
 
 def create_predicate_info_dict(predicates_df, predicate_indicator_df, zone_aggregated_df, y_predicted_numeric):
     """
-    Cria um dicionário com informações detalhadas sobre cada predicado.
+    Create a dictionary containing detailed information for each predicate.
     
-    Para cada predicado, armazena:
-    - Os valores agregados da zona espectral correspondente (das amostras que satisfazem o predicado)
-    - Os valores preditos pelo modelo (das mesmas amostras)
-    - Opcionalmente: índices das amostras, classe predita, etc.
+    For each predicate, the following data are stored:
+    - The aggregated spectral zone values (from the samples satisfying the predicate)
+    - The model-predicted values (from the same samples)
+    - Optionally: sample indices, predicted class, etc.
     
     Parameters
     ----------
     - **predicates_df** : pd.DataFrame
-        DataFrame com predicados gerados por `predicates_by_quantiles()` ou similar.
-        Colunas obrigatórias: ['predicate', 'rule', 'zone', 'thresholds', 'operator']
+        DataFrame with predicates generated by `predicates_by_quantiles()` or similar.
+        Required columns: ['predicate', 'rule', 'zone', 'thresholds', 'operator']
         
     - **predicate_indicator_df** : pd.DataFrame
-        Matriz binária de indicadores (samples × predicates) retornada por `predicates_by_quantiles()`.
-        Colunas são as regras dos predicados (ex: "Ca ka <= 25.5")
-        Valores: 1 = amostra satisfaz o predicado, 0 = não satisfaz
+        Binary indicator matrix (samples × predicates) returned by `predicates_by_quantiles()`.
+        Columns correspond to predicate rules (e.g., "Ca ka <= 25.5").
+        Values: 1 = sample satisfies the predicate, 0 = does not satisfy
         
     - **zone_aggregated_df** : pd.DataFrame
-        DataFrame com valores agregados das zonas espectrais (retornado por `aggregate_spectral_zones()`).
-        Linhas = amostras, Colunas = zonas espectrais
-        Valores = resultado da agregação (sum, mean, median, std, etc.)
+        DataFrame with aggregated spectral zone values (returned by `aggregate_spectral_zones()`).
+        Rows = samples, Columns = spectral zones
+        Values = aggregation result (sum, mean, median, std, etc.)
         
-    - **y_predicted_numeric** : pd.Series, pd.DataFrame ou np.ndarray
-        Valores preditos pelo modelo (contínuos).
-        - Para PLS-DA: valores entre 0 e 1 (ex: `plsda_results[5].iloc[:, -1]`)
-        - Para PLS-R: valores contínuos da variável resposta
-        - Deve ter o mesmo número de linhas que `zone_aggregated_df`
+    - **y_predicted_numeric** : pd.Series, pd.DataFrame, or np.ndarray
+        Model-predicted values (continuous).
+        - For PLS-DA: values between 0 and 1 (e.g., `plsda_results[5].iloc[:, -1]`)
+        - For PLS-R: continuous response variable values
+        - Must have the same number of rows as `zone_aggregated_df`
     
     Returns
     -------
     - **predicate_info_dict** : dict
-        Dicionário estruturado como:
+        Dictionary structured as:
         {
             'Ca ka <= 25.5': DataFrame({
-                'Zone_Aggregated': [valores agregados da zona Ca ka],
-                'Predicted_Y': [valores preditos pelo modelo],
-                'Sample_Index': [índices originais das amostras]
+                'Zone_Aggregated': [aggregated values of the Ca ka zone],
+                'Predicted_Y': [model-predicted values],
+                'Sample_Index': [original sample indices]
             }),
             'Fe ka > 10.2': DataFrame({...}),
             ...
         }
         
-        - Chaves: Regras dos predicados (strings)
-        - Valores: DataFrames com 3 colunas:
-            - **Zone_Aggregated**: Valores agregados da zona espectral (pode ser soma, média, mediana, etc.)
-            - **Predicted_Y**: Valores preditos pelo modelo para essas amostras
-            - **Sample_Index**: Índices originais das amostras (para rastreabilidade)
+        - Keys: Predicate rules (strings)
+        - Values: DataFrames with 3 columns:
+            - **Zone_Aggregated**: Aggregated spectral zone values (may be sum, mean, median, etc.)
+            - **Predicted_Y**: Model-predicted values for these samples
+            - **Sample_Index**: Original sample indices (for traceability)
     
     Raises
     ------
     - ValueError
-        Se os DataFrames de entrada tiverem número incompatível de amostras
+        If the input DataFrames have an incompatible number of samples
     - KeyError
-        Se alguma coluna obrigatória estiver faltando
+        If any required column is missing
     """
     import pandas as pd
     import numpy as np
     
-    # VALIDAÇÃO DE ENTRADAS
+    # INPUT VALIDATION
     
-    # Verificar colunas obrigatórias em predicates_df
+    # Verify required columns in predicates_df
     required_cols = ['predicate', 'rule', 'zone', 'thresholds', 'operator']
     missing_cols = [col for col in required_cols if col not in predicates_df.columns]
     if missing_cols:
-        raise KeyError(f"Colunas faltando em predicates_df: {missing_cols}")
+        raise KeyError(f"Missing columns in predicates_df: {missing_cols}")
     
-    # Converter y_predicted_numeric para Series se necessário
+    # Convert y_predicted_numeric to Series if necessary
     if isinstance(y_predicted_numeric, pd.DataFrame):
-        y_predicted_numeric = y_predicted_numeric.iloc[:, -1]  # última coluna
+        y_predicted_numeric = y_predicted_numeric.iloc[:, -1]  # last column
     elif isinstance(y_predicted_numeric, np.ndarray):
         y_predicted_numeric = pd.Series(y_predicted_numeric)
     
-    # Verificar compatibilidade de tamanhos
+    # Verify sample count compatibility
     n_samples_zones = len(zone_aggregated_df)
     n_samples_predicted = len(y_predicted_numeric)
     n_samples_indicators = len(predicate_indicator_df)
     
     if not (n_samples_zones == n_samples_predicted == n_samples_indicators):
         raise ValueError(
-            f"Número incompatível de amostras:\n"
+            f"Incompatible number of samples:\n"
             f"  zone_aggregated_df: {n_samples_zones}\n"
             f"  y_predicted_numeric: {n_samples_predicted}\n"
             f"  predicate_indicator_df: {n_samples_indicators}\n"
-            f"Todos devem ter o mesmo número de linhas."
+            f"All must have the same number of rows."
         )
     
-    # CONSTRUÇÃO DO DICIONÁRIO DE INFORMAÇÕES
+    # INFORMATION DICTIONARY CONSTRUCTION
     
-    predicate_info_dict = {}  # dicionário para armazenar resultados
-    n_predicates_processed = 0  # contador de predicados processados
-    n_predicates_empty = 0  # contador de predicados sem amostras
+    predicate_info_dict = {}  # dictionary to store results
+    n_predicates_processed = 0  # counter of processed predicates
+    n_predicates_empty = 0  # counter of predicates with no samples
     
-    # Iterar sobre cada predicado
+    # Iterate over each predicate
     for _, row in predicates_df.iterrows():
         
-        pred_rule = row['rule']  # regra do predicado (ex: "Ca ka <= 25.5")
-        zone_name = row['zone']  # nome da zona espectral (ex: "Ca ka")
+        pred_rule = row['rule']  # predicate rule (e.g., "Ca ka <= 25.5")
+        zone_name = row['zone']  # spectral zone name (e.g., "Ca ka")
         
-        # 1. IDENTIFICAR AMOSTRAS QUE SATISFAZEM O PREDICADO
-        # Usar a matriz de indicadores para filtrar amostras
-        # predicate_indicator_df tem colunas com as regras dos predicados
+        # 1. IDENTIFY SAMPLES SATISFYING THE PREDICATE
+        # Use the indicator matrix to filter samples
+        # predicate_indicator_df has columns corresponding to predicate rules
         
         if pred_rule not in predicate_indicator_df.columns:
-            # Predicado não existe na matriz de indicadores (não deveria acontecer)
+            # Predicate does not exist in the indicator matrix (should not occur)
             continue
         
-        # Máscara booleana: True = amostra satisfaz o predicado
+        # Boolean mask: True = sample satisfies the predicate
         mask_satisfied = predicate_indicator_df[pred_rule] == 1
         
-        # Índices das amostras que satisfazem o predicado
-        # Usar np.where() para compatibilidade com todos os tipos de índices
+        # Indices of samples satisfying the predicate
+        # Use np.where() for compatibility with all index types
         satisfied_indices = np.where(mask_satisfied)[0].tolist()
         
-        # 2. VERIFICAR SE HÁ AMOSTRAS SATISFEITAS
-        if not satisfied_indices:  # lista vazia
+        # 2. VERIFY WHETHER ANY SAMPLES ARE SATISFIED
+        if not satisfied_indices:  # empty list
             n_predicates_empty += 1
-            continue  # pula este predicado (não adiciona ao dicionário)
+            continue  # skip this predicate (not added to the dictionary)
         
-        # 3. EXTRAIR VALORES AGREGADOS DA ZONA ESPECTRAL
-        # Valores agregados (soma, média, mediana, std, etc.) da zona correspondente
+        # 3. EXTRACT AGGREGATED SPECTRAL ZONE VALUES
+        # Aggregated values (sum, mean, median, std, etc.) of the corresponding zone
         zone_aggregated_values = zone_aggregated_df.loc[satisfied_indices, zone_name]
         
-        # 4. EXTRAIR VALORES PREDITOS PELO MODELO
+        # 4. EXTRACT MODEL-PREDICTED VALUES
         predicted_values = y_predicted_numeric.iloc[satisfied_indices]
         
-        # 5. CRIAR DATAFRAME COM INFORMAÇÕES DO PREDICADO
+        # 5. CREATE DATAFRAME WITH PREDICATE INFORMATION
         df_predicate_info = pd.DataFrame({
-            'Zone_Aggregated': zone_aggregated_values.reset_index(drop=True),  # valores agregados
-            'Predicted_Y': predicted_values.reset_index(drop=True),  # valores preditos
-            'Sample_Index': satisfied_indices  # índices originais (para rastreabilidade)
+            'Zone_Aggregated': zone_aggregated_values.reset_index(drop=True),  # aggregated values
+            'Predicted_Y': predicted_values.reset_index(drop=True),  # predicted values
+            'Sample_Index': satisfied_indices  # original indices (for traceability)
         })
         
-        # 6. ARMAZENAR NO DICIONÁRIO
+        # 6. STORE IN DICTIONARY
         predicate_info_dict[pred_rule] = df_predicate_info
         n_predicates_processed += 1
     
@@ -398,72 +398,72 @@ def bagging_predicates(zone_sums_df, y_predicted_numeric, predicates_df,
                           min_samples_per_predicate=5, replace=True, random_seed=42,
                           sample_bagging=True, predicate_bagging=True):
     """
-    Realiza bagging de predicados com controle granular sobre amostragem.
+    Perform predicate bagging with granular control over the sampling strategy.
     
-    Estratégia de Bagging (Configurável):
-    =====================================
-    1. **Amostragem de Linhas (Amostras):**
-       - sample_bagging=True: Sorteia N amostras para cada bag
-       - sample_bagging=False: Usa TODAS as amostras em todos os bags
+    Bagging Strategy (Configurable):
+    ================================
+    1. **Row Sampling (Samples):**
+       - sample_bagging=True: Randomly draws N samples for each bag
+       - sample_bagging=False: Uses ALL samples in every bag
     
-    2. **Amostragem de Colunas (Predicados):**
-       - predicate_bagging=True: Sorteia M predicados para cada bag
-       - predicate_bagging=False: Usa TODOS os predicados em todos os bags
+    2. **Column Sampling (Predicates):**
+       - predicate_bagging=True: Randomly draws M predicates for each bag
+       - predicate_bagging=False: Uses ALL predicates in every bag
     
-    3. **Filtragem e Validação:**
-       - Para cada predicado selecionado, filtra as amostras que o satisfazem
-       - Descarta predicados com insuficiente cobertura (se sample_bagging=True)
+    3. **Filtering and Validation:**
+       - For each selected predicate, filters the samples that satisfy it
+       - Discards predicates with insufficient coverage (when sample_bagging=True)
     
-    Parâmetros
+    Parameters
     ----------
     zone_sums_df : pd.DataFrame
-        DataFrame com somas das zonas espectrais (linhas=amostras, colunas=zonas).
+        DataFrame with spectral zone sums (rows=samples, columns=zones).
         
-    y_predicted_numeric : pd.Series ou np.ndarray
-        Valores preditos pelo modelo (contínuos, entre 0 e 1 para PLS-DA).
+    y_predicted_numeric : pd.Series or np.ndarray
+        Model-predicted values (continuous, between 0 and 1 for PLS-DA).
         
     predicates_df : pd.DataFrame
-        DataFrame com predicados. Colunas obrigatórias:
-        - 'rule': Regra legível (ex: "Ca ka <= 25.5")
-        - 'zone': Nome da zona espectral
-        - 'thresholds': Valor do threshold
-        - 'operator': "<=" ou ">"
+        DataFrame with predicates. Required columns:
+        - 'rule': Human-readable rule (e.g., "Ca ka <= 25.5")
+        - 'zone': Spectral zone name
+        - 'thresholds': Threshold value
+        - 'operator': "<=" or ">"
         
     n_bags : int, default=50
-        Número de bags (iterações) a criar.
+        Number of bags (iterations) to create.
         
     n_predicates_per_bag : int, default=20
-        Número de predicados a sortear por bag.
-        **Ignorado se predicate_bagging=False.**
+        Number of predicates to sample per bag.
+        **Ignored if predicate_bagging=False.**
         
     n_samples_per_bag : int, default=80
-        Número de amostras a sortear por bag.
-        **Ignorado se sample_bagging=False.**
+        Number of samples to draw per bag.
+        **Ignored if sample_bagging=False.**
         
     min_samples_per_predicate : int, default=5
-        Mínimo de amostras que devem satisfazer um predicado para ele ser válido.
-        **Aplicado apenas se sample_bagging=True.**
+        Minimum number of samples that must satisfy a predicate for it to be considered valid.
+        **Applied only when sample_bagging=True.**
         
     replace : bool, default=True
-        - True: Bootstrap (amostragem com reposição)
-        - False: Subsampling (sem reposição)
-        **Aplicado apenas se sample_bagging=True.**
+        - True: Bootstrap (sampling with replacement)
+        - False: Subsampling (without replacement)
+        **Applied only when sample_bagging=True.**
         
     random_seed : int, default=42
-        Semente aleatória para reprodutibilidade.
+        Random seed for reproducibility.
         
     sample_bagging : bool, default=True
-        - True: Faz subamostragem das LINHAS (amostras variam entre bags)
-        - False: Usa todas as amostras em todos os bags
+        - True: Performs row subsampling (samples vary across bags)
+        - False: Uses all samples in every bag
         
     predicate_bagging : bool, default=True
-        - True: Faz subamostragem das COLUNAS (predicados variam entre bags)
-        - False: Usa todos os predicados em todos os bags
+        - True: Performs column subsampling (predicates vary across bags)
+        - False: Uses all predicates in every bag
     
     Returns
     -------
     bags_dict : dict
-        Dicionário estruturado como:
+        Dictionary structured as:
         {
             'Bag_1': {
                 'Ca ka <= 25.5': DataFrame(['Zone_Sum', 'Predicted_Y', 'Sample_Index']),
@@ -478,80 +478,80 @@ def bagging_predicates(zone_sums_df, y_predicted_numeric, predicates_df,
     import numpy as np
     import pandas as pd
     
-    # INICIALIZAÇÃO
+    # INITIALIZATION
     np.random.seed(random_seed)
     
     n_total_samples = len(zone_sums_df)
     predicate_rules = predicates_df['rule'].tolist()
     bags_dict = {}
     
-    # LOOP PRINCIPAL: CRIAÇÃO DOS BAGS
+    # MAIN LOOP: BAG CREATION
     for bag_num in range(1, n_bags + 1):
         
-        # 1. SELEÇÃO DE AMOSTRAS (LINHAS) - Controle via `sample_bagging`
+        # 1. SAMPLE SELECTION (ROWS) - Controlled via `sample_bagging`
         if sample_bagging:
-            # Sorteia N amostras (bootstrap ou subsampling)
+            # Draw N samples (bootstrap or subsampling)
             bag_sample_indices = np.random.choice(
                 range(n_total_samples),
                 size=n_samples_per_bag,
                 replace=replace  # True=bootstrap, False=subsampling
             )
         else:
-            # Usa TODAS as amostras disponíveis
+            # Use ALL available samples
             bag_sample_indices = np.arange(n_total_samples)
         
-        # 2. SELEÇÃO DE PREDICADOS (COLUNAS) - Controle via `predicate_bagging`
+        # 2. PREDICATE SELECTION (COLUMNS) - Controlled via `predicate_bagging`
         if predicate_bagging:
-            # Sorteia M predicados aleatoriamente (sem reposição)
+            # Draw M predicates randomly (without replacement)
             selected_predicate_rules = np.random.choice(
                 predicate_rules,
                 size=min(n_predicates_per_bag, len(predicate_rules)),
                 replace=False
             )
         else:
-            # Usa TODOS os predicados disponíveis
+            # Use ALL available predicates
             selected_predicate_rules = predicate_rules
         
-        # 3. FILTRAGEM E VALIDAÇÃO DE PREDICADOS
+        # 3. PREDICATE FILTERING AND VALIDATION
         bag_predicate_dict = {}
         n_discarded = 0
         
         for pred_rule in selected_predicate_rules:
             
-            # Recupera metadados do predicado
+            # Retrieve predicate metadata
             pred_row_filtered = predicates_df[predicates_df['rule'] == pred_rule]
             if len(pred_row_filtered) == 0:
-                continue  # Predicado não encontrado, pula
+                continue  # Predicate not found, skip
             pred_row = pred_row_filtered.iloc[0]
             zone = pred_row['zone']
             threshold = float(pred_row['thresholds'])
             operator = pred_row['operator']
             
-            # Extrai valores da zona para as amostras do bag
+            # Extract zone values for the bag samples
             zone_values_bag = zone_sums_df.loc[bag_sample_indices, zone].values
             
-            # Aplica a regra do predicado
+            # Apply the predicate rule
             if operator == "<=":
                 mask_satisfied = zone_values_bag <= threshold
             elif operator == ">":
                 mask_satisfied = zone_values_bag > threshold
             else:
-                continue  # Operador inválido, pula
+                continue  # Invalid operator, skip
             
-            # Filtra amostras que satisfazem o predicado
+            # Filter samples satisfying the predicate
             satisfied_indices_in_bag = bag_sample_indices[mask_satisfied]
             
-            # Validação de cobertura mínima (apenas se sample_bagging=True)
+            # Minimum coverage validation (only when sample_bagging=True)
             if sample_bagging and len(satisfied_indices_in_bag) < min_samples_per_predicate:
                 n_discarded += 1
                 continue
             
-            # Validação básica (descarta predicados vazios sempre)
+            # Basic validation (always discard empty predicates)
             if len(satisfied_indices_in_bag) == 0:
                 n_discarded += 1
                 continue
             
-            # Armazena dados do predicado válido
+            # Store valid predicate data
             df_predicate_info = pd.DataFrame({
                 'Zone_Sum': zone_sums_df.loc[satisfied_indices_in_bag, zone].values,
                 'Predicted_Y': y_predicted_numeric.iloc[satisfied_indices_in_bag].values,
@@ -560,33 +560,33 @@ def bagging_predicates(zone_sums_df, y_predicted_numeric, predicates_df,
             
             bag_predicate_dict[pred_rule] = df_predicate_info
         
-        # 4. ARMAZENAMENTO DO BAG
+        # 4. BAG STORAGE
         if len(bag_predicate_dict) > 0:
             bags_dict[f'Bag_{bag_num}'] = bag_predicate_dict
             
-            # Log informativo
-            samp_str = "Sim" if sample_bagging else "Não"
-            pred_str = f"Sim ({n_predicates_per_bag})" if predicate_bagging else "Não (Todos)"
-            print(f"Bag_{bag_num} | Amostras: {samp_str} | Predicados: {pred_str} | "
-                  f"Válidos: {len(bag_predicate_dict)} | Descartados: {n_discarded}")
+            # Informative log
+            samp_str = "Yes" if sample_bagging else "No"
+            pred_str = f"Yes ({n_predicates_per_bag})" if predicate_bagging else "No (All)"
+            print(f"Bag_{bag_num} | Samples: {samp_str} | Predicates: {pred_str} | "
+                  f"Valid: {len(bag_predicate_dict)} | Discarded: {n_discarded}")
         else:
-            print(f"Bag_{bag_num}: VAZIO (todos os predicados descartados)")
+            print(f"Bag_{bag_num}: EMPTY (all predicates discarded)")
     
     return bags_dict
 
 def calculate_predicate_metrics(bags_result, metric='mutual_info', threshold=0.1, n_neighbors=10):
     """
-    Calcula métricas de associação entre valores agregados das zonas espectrais 
-    e as predições do modelo para cada predicado em cada bag.
+    Compute association metrics between aggregated spectral zone values 
+    and model predictions for each predicate in each bag.
     
-    Esta função processa todos os bags gerados por `bagging_predicates()` e calcula
-    a força da associação entre os valores das zonas espectrais e as predições contínuas
-    do modelo. Suporta duas métricas: Mutual Information e Covariância.
+    This function processes all bags generated by `bagging_predicates()` and computes
+    the strength of association between spectral zone values and the model's continuous
+    predictions. Two metrics are supported: Mutual Information and Covariance.
     
     Parameters
     ----------
     - **bags_result** : dict
-        Dicionário retornado por `bagging_predicates_v3()`, estruturado como:
+        Dictionary returned by `bagging_predicates_v3()`, structured as:
         {
             'Bag_1': {
                 'Ca ka <= 25.5': DataFrame(['Zone_Sum', 'Predicted_Y', 'Sample_Index']),
@@ -597,168 +597,168 @@ def calculate_predicate_metrics(bags_result, metric='mutual_info', threshold=0.1
             ...
         }
         
-    - **metric** : str, opcional (padrão='mutual_info')
-        Métrica de associação a calcular. Opções:
-        - **'mutual_info'**: Informação Mútua (MI) - Mede dependência não-linear
-        - **'covariance'**: Covariância - Mede dependência linear
+    - **metric** : str, optional (default='mutual_info')
+        Association metric to compute. Options:
+        - **'mutual_info'**: Mutual Information (MI) - Measures non-linear dependence
+        - **'covariance'**: Covariance - Measures linear dependence
         
-    - **threshold** : float, opcional (padrão=0.1)
-        Valor mínimo da métrica para um predicado ser considerado relevante.
-        Predicados com métrica < threshold são FILTRADOS do resultado.
-        - Para MI: valores típicos entre 0.0 e 1.0+ (quanto maior, mais informativo)
-        - Para Covariance: valores dependem da escala dos dados (use valores absolutos)
+    - **threshold** : float, optional (default=0.1)
+        Minimum metric value for a predicate to be considered relevant.
+        Predicates with metric < threshold are FILTERED from the result.
+        - For MI: typical values between 0.0 and 1.0+ (higher = more informative)
+        - For Covariance: values depend on data scale (absolute values are used)
         
-    - **n_neighbors** : int, opcional (padrão=10)
-        Número de vizinhos para o cálculo de Mutual Information.
-        **Usado apenas quando metric='mutual_info'. Ignorado para covariância.**
-        - Valores baixos (3-5): mais sensível a ruído local
-        - Valores médios (10-20): balanço entre sensibilidade e robustez (recomendado)
-        - Valores altos (>30): mais suave, menos sensível a variações locais
+    - **n_neighbors** : int, optional (default=10)
+        Number of neighbors for Mutual Information computation.
+        **Used only when metric='mutual_info'. Ignored for covariance.**
+        - Low values (3-5): more sensitive to local noise
+        - Medium values (10-20): balance between sensitivity and robustness (recommended)
+        - High values (>30): smoother, less sensitive to local variations
     
     Returns
     -------
     - **metrics_results_dict** : dict
-        Dicionário estruturado como:
+        Dictionary structured as:
         {
             'Bag_1': DataFrame({
                 'Predicate': ['Ca ka <= 25.5', 'Fe ka > 10.2', ...],
-                'Mutual_Info': [0.45, 0.32, ...]  # ou 'Covariance' se metric='covariance'
+                'Mutual_Info': [0.45, 0.32, ...]  # or 'Covariance' if metric='covariance'
             }),
             'Bag_2': DataFrame({...}),
             ...
         }
         
-        Cada DataFrame contém:
-        - **Predicate**: Regra do predicado (string)
-        - **Mutual_Info** ou **Covariance**: Valor da métrica calculada
-        - Ordenado de forma DECRESCENTE pela métrica (maiores valores primeiro)
-        - Filtrado para manter apenas predicados com métrica > threshold
+        Each DataFrame contains:
+        - **Predicate**: Predicate rule (string)
+        - **Mutual_Info** or **Covariance**: Computed metric value
+        - Sorted in DESCENDING order by metric (highest values first)
+        - Filtered to retain only predicates with metric > threshold
     
     Raises
     ------
     - ValueError
-        Se metric não for 'mutual_info' ou 'covariance'
+        If metric is not 'mutual_info' or 'covariance'
         
     - KeyError
-        Se algum bag não contiver as colunas esperadas ('Zone_Sum', 'Predicted_Y')
+        If any bag does not contain the expected columns ('Zone_Sum', 'Predicted_Y')
     
     Notes
     -----
     - **Mutual Information (MI):**
-        - Captura dependências LINEARES e NÃO-LINEARES entre X e Y
-        - Valores sempre >= 0 (0 = independência, >0 = dependência)
-        - Mais robusto a outliers que covariância
-        - Computacionalmente mais custoso
-        - Ideal para relações complexas/não-lineares
+        - Captures both LINEAR and NON-LINEAR dependencies between X and Y
+        - Values are always >= 0 (0 = independence, >0 = dependence)
+        - More robust to outliers than covariance
+        - Computationally more expensive
+        - Suitable for complex/non-linear relationships
     
-    - **Covariância:**
-        - Captura apenas dependências LINEARES
-        - Valores podem ser positivos ou negativos (usamos |valor absoluto|)
-        - Sensível a outliers e escala dos dados
-        - Computacionalmente mais rápido
-        - Ideal para relações lineares simples
+    - **Covariance:**
+        - Captures only LINEAR dependencies
+        - Values can be positive or negative (absolute values are used)
+        - Sensitive to outliers and data scale
+        - Computationally less expensive
+        - Suitable for simple linear relationships
     
     - **Threshold:**
-        - Define o "corte de relevância" para filtrar predicados fracos
-        - Valores muito baixos: mantém muitos predicados (alguns irrelevantes)
-        - Valores muito altos: pode descartar predicados úteis
-        - Recomendação: começar com 0.1 para MI, ajustar conforme necessidade
+        - Defines the "relevance cutoff" for filtering weak predicates
+        - Very low values: retains many predicates (some irrelevant)
+        - Very high values: may discard useful predicates
+        - Recommendation: start with 0.1 for MI, adjust as needed
     """
     import pandas as pd
     import numpy as np
     from sklearn.feature_selection import mutual_info_regression
     
-    # VALIDAÇÃO DE ENTRADAS    
+    # INPUT VALIDATION    
     valid_metrics = ['mutual_info', 'covariance']
     if metric not in valid_metrics:
         raise ValueError(
-            f"Métrica '{metric}' não reconhecida.\n"
-            f"Opções válidas: {', '.join(valid_metrics)}"
+            f"Metric '{metric}' not recognized.\n"
+            f"Valid options: {', '.join(valid_metrics)}"
         )
     
     if not isinstance(bags_result, dict):
-        raise TypeError("bags_result deve ser um dicionário retornado por bagging_predicates_v3()")
+        raise TypeError("bags_result must be a dictionary returned by bagging_predicates_v3()")
     
-    # INICIALIZAÇÃO    
-    metrics_results_dict = {}  # dicionário para armazenar resultados
+    # INITIALIZATION    
+    metrics_results_dict = {}  # dictionary to store results
     metric_name = 'Mutual_Info' if metric == 'mutual_info' else 'Covariance'
     
     total_bags = len(bags_result)
     total_predicates_processed = 0
     total_predicates_filtered = 0
     
-    print(f"Calculando {metric_name} para Predicados")
-    print(f"Métrica: {metric}")
+    print(f"Computing {metric_name} for Predicates")
+    print(f"Metric: {metric}")
     print(f"Threshold: {threshold}")
     
-    # LOOP PRINCIPAL: PROCESSAR CADA BAG    
+    # MAIN LOOP: PROCESS EACH BAG    
     for bag_name, predicates_dict in bags_result.items():
         
         if len(predicates_dict) == 0:
-            print(f"{bag_name}: VAZIO (pulando)")
+            print(f"{bag_name}: EMPTY (skipping)")
             continue
         
-        # 1. CALCULAR MÉTRICA PARA CADA PREDICADO NO BAG        
-        metrics = {}  # dicionário temporário {predicate_rule: metric_value}
+        # 1. COMPUTE METRIC FOR EACH PREDICATE IN THE BAG        
+        metrics = {}  # temporary dictionary {predicate_rule: metric_value}
         
         for pred_rule, df_info in predicates_dict.items():
             
-            # Validar colunas necessárias
+            # Validate required columns
             required_cols = ['Zone_Sum', 'Predicted_Y']
             missing_cols = [col for col in required_cols if col not in df_info.columns]
             if missing_cols:
                 raise KeyError(
-                    f"Bag '{bag_name}', Predicado '{pred_rule}': "
-                    f"Colunas faltando: {missing_cols}"
+                    f"Bag '{bag_name}', Predicate '{pred_rule}': "
+                    f"Missing columns: {missing_cols}"
                 )
             
-            # Extrair dados
-            X_zone = df_info['Zone_Sum'].values.reshape(-1, 1)  # valores da zona (2D para sklearn)
-            y_pred = df_info['Predicted_Y'].values  # valores preditos (1D)
+            # Extract data
+            X_zone = df_info['Zone_Sum'].values.reshape(-1, 1)  # zone values (2D for sklearn)
+            y_pred = df_info['Predicted_Y'].values  # predicted values (1D)
             
-            # Verificar se há dados suficientes
+            # Verify sufficient data availability
             if len(X_zone) < 2:
-                metrics[pred_rule] = 0.0  # não há dados suficientes para calcular métrica
+                metrics[pred_rule] = 0.0  # insufficient data to compute metric
                 continue
             
-            # Calcular métrica selecionada
+            # Compute the selected metric
             if metric == 'mutual_info':
-                # Mutual Information (não-linear)
+                # Mutual Information (non-linear)
                 mi_score = mutual_info_regression(
                     X_zone, 
                     y_pred, 
-                    discrete_features=False,  # X é contínua
+                    discrete_features=False,  # X is continuous
                     n_neighbors=n_neighbors,
-                    random_state=42  # reprodutibilidade
+                    random_state=42  # reproducibility
                 )
-                metrics[pred_rule] = mi_score[0]  # MI retorna array de 1 elemento
+                metrics[pred_rule] = mi_score[0]  # MI returns an array of 1 element
                 
             elif metric == 'covariance':
-                # Covariância (linear) - usamos valor absoluto
-                # np.cov retorna matriz 2x2: [[var(X), cov(X,Y)], [cov(Y,X), var(Y)]]
-                # Queremos cov(X,Y) = elemento [0,1] ou [1,0]
+                # Covariance (linear) - absolute value is used
+                # np.cov returns a 2x2 matrix: [[var(X), cov(X,Y)], [cov(Y,X), var(Y)]]
+                # The target is cov(X,Y) = element [0,1] or [1,0]
                 cov_matrix = np.cov(X_zone.flatten(), y_pred)
-                covariance = cov_matrix[0, 1]  # covariância X-Y
-                metrics[pred_rule] = np.abs(covariance)  # valor absoluto
+                covariance = cov_matrix[0, 1]  # X-Y covariance
+                metrics[pred_rule] = np.abs(covariance)  # absolute value
         
         total_predicates_processed += len(metrics)
         
-        # 2. CONVERTER PARA DATAFRAME E ORDENAR        
+        # 2. CONVERT TO DATAFRAME AND SORT        
         metrics_df = pd.DataFrame.from_dict(
             metrics, 
-            orient='index',  # chaves = índices, valores = coluna
+            orient='index',  # keys = indices, values = column
             columns=[metric_name]
         )
         
-        # Adicionar coluna de predicado
+        # Add predicate column
         metrics_df.insert(0, 'Predicate', metrics_df.index)
         metrics_df = metrics_df.reset_index(drop=True)
         
-        # Ordenar de forma DECRESCENTE (maiores valores = mais informativos)
+        # Sort in DESCENDING order (higher values = more informative)
         metrics_df = metrics_df.sort_values(by=metric_name, ascending=False)
         metrics_df = metrics_df.reset_index(drop=True)
         
-        # 3. FILTRAR POR THRESHOLD        
+        # 3. FILTER BY THRESHOLD        
         n_before_filter = len(metrics_df)
         metrics_df = metrics_df[metrics_df[metric_name] > threshold].reset_index(drop=True)
         n_after_filter = len(metrics_df)
@@ -766,96 +766,96 @@ def calculate_predicate_metrics(bags_result, metric='mutual_info', threshold=0.1
         
         total_predicates_filtered += n_filtered
         
-        # 4. ARMAZENAR RESULTADO        
+        # 4. STORE RESULT        
         metrics_results_dict[bag_name] = metrics_df
     
     return metrics_results_dict
 
 def calculate_lrc(graphs_by_seed, predicates_df):
     """
-    Calcula Local Reaching Centrality (LRC) para todos os nós dos grafos.
+    Compute Local Reaching Centrality (LRC) for all nodes in the graphs.
     
-    A LRC mede a importância de cada nó baseada em sua capacidade de alcançar
-    outros nós no grafo, ponderada pelos pesos das arestas. Nós com maior LRC
-    são mais centrais/importantes na estrutura do grafo.
+    The LRC measures the importance of each node based on its ability to reach
+    other nodes in the graph, weighted by edge weights. Nodes with higher LRC
+    are more central/important within the graph structure.
     
     Parameters
     ----------
     - **graphs_by_seed** : dict
-        Dicionário com grafos NetworkX por semente (retornado por build_predicate_graphs).
-        Estrutura: {seed1: nx.DiGraph(), seed2: nx.DiGraph(), ...}
+        Dictionary of NetworkX graphs indexed by seed (returned by build_predicate_graphs).
+        Structure: {seed1: nx.DiGraph(), seed2: nx.DiGraph(), ...}
         
     - **predicates_df** : pd.DataFrame
-        DataFrame com informações dos predicados. Colunas obrigatórias:
-        - 'rule': Regra do predicado (ex: "Ca ka <= 25.5")
-        - 'zone': Nome da zona espectral
-        - 'thresholds': Valor do threshold
-        - 'operator': "<=" ou ">"
+        DataFrame with predicate information. Required columns:
+        - 'rule': Predicate rule (e.g., "Ca ka <= 25.5")
+        - 'zone': Spectral zone name
+        - 'thresholds': Threshold value
+        - 'operator': "<=" or ">"
     
     Returns
     -------
     - **lrc_by_seed** : dict
-        Dicionário com DataFrames de LRC para cada semente:
+        Dictionary of LRC DataFrames for each seed:
         {
             seed1: DataFrame(['Node', 'Local_Reaching_Centrality', 'Zone', 'Threshold', 'Operator', 'Seed']),
             seed2: DataFrame([...]),
             ...
         }
         
-        Cada DataFrame contém:
-        - **Node**: Nome do nó (regra do predicado ou 'Class_eut'/'Class_dist')
-        - **Local_Reaching_Centrality**: Valor da LRC (quanto maior, mais importante)
-        - **Zone**: Nome da zona espectral (None para nós terminais)
-        - **Threshold**: Valor do threshold (None para nós terminais)
-        - **Operator**: Operador da regra (None para nós terminais)
-        - **Seed**: Semente aleatória usada
+        Each DataFrame contains:
+        - **Node**: Node name (predicate rule or 'Class_eut'/'Class_dist')
+        - **Local_Reaching_Centrality**: LRC value (higher = more important)
+        - **Zone**: Spectral zone name (None for terminal nodes)
+        - **Threshold**: Threshold value (None for terminal nodes)
+        - **Operator**: Rule operator (None for terminal nodes)
+        - **Seed**: Random seed used
         
-        **Ordenação**: Decrescente por LRC (nós mais importantes primeiro)
+        **Sorting**: Descending by LRC (most important nodes first)
     """
     import networkx as nx
     import pandas as pd
     import numpy as np
         
-    # CÁLCULO DA LRC
+    # LRC COMPUTATION
     
     lrc_by_seed = {}
     
     for seed, DG in graphs_by_seed.items():
-        print(f"\nProcessando LRC - Semente: {seed}")
+        print(f"\nProcessing LRC - Seed: {seed}")
         
-        # 1. CALCULAR LRC PARA CADA NÓ
+        # 1. COMPUTE LRC FOR EACH NODE
         local_reaching_centrality = {
             node: nx.local_reaching_centrality(DG, node, weight='weight')
             for node in DG.nodes()
         }
         
-        # Ordenar por LRC (decrescente)
+        # Sort by LRC (descending)
         sorted_lrc = sorted(
             local_reaching_centrality.items(),
             key=lambda x: x[1],
             reverse=True
         )
         
-        # 2. CRIAR DATAFRAME COM LRC
+        # 2. CREATE DATAFRAME WITH LRC
         lrc_df_seed = pd.DataFrame(sorted_lrc, columns=['Node', 'Local_Reaching_Centrality'])
         
-        # 3. EXTRAIR METADADOS DOS PREDICADOS
+        # 3. EXTRACT PREDICATE METADATA
         zones = []
         thresholds = []
         operators = []
         
         for node in lrc_df_seed['Node']:
             if node.startswith('Class_'):
-                # Nó terminal
+                # Terminal node
                 zones.append(None)
                 thresholds.append(None)
                 operators.append(None)
             else:
-                # Predicado: buscar metadados em predicates_df
+                # Predicate: retrieve metadata from predicates_df
                 pred_row_filtered = predicates_df[predicates_df['rule'] == node]
                 
                 if len(pred_row_filtered) == 0:
-                    # Predicado não encontrado (não deveria acontecer)
+                    # Predicate not found (should not occur)
                     zones.append('Unknown')
                     thresholds.append(None)
                     operators.append(None)
@@ -865,93 +865,93 @@ def calculate_lrc(graphs_by_seed, predicates_df):
                     thresholds.append(pred_row['thresholds'])
                     operators.append(pred_row['operator'])
         
-        # Adicionar colunas ao DataFrame
+        # Add columns to the DataFrame
         lrc_df_seed['Zone'] = zones
         lrc_df_seed['Threshold'] = thresholds
         lrc_df_seed['Operator'] = operators
         lrc_df_seed['Seed'] = seed
         
-        # Armazenar resultado
+        # Store result
         lrc_by_seed[seed] = lrc_df_seed
     
         return lrc_by_seed
 
 def calculate_lrc_single_graph(graph, predicates_df):
     """
-    Calcula Local Reaching Centrality (LRC) para todos os nós de um único grafo.
+    Compute Local Reaching Centrality (LRC) for all nodes of a single graph.
     
-    A LRC mede a importância de cada nó baseada em sua capacidade de alcançar
-    outros nós no grafo, ponderada pelos pesos das arestas. Nós com maior LRC
-    são mais centrais/importantes na estrutura do grafo.
+    The LRC measures the importance of each node based on its ability to reach
+    other nodes in the graph, weighted by edge weights. Nodes with higher LRC
+    are more central/important within the graph structure.
     
     Parameters
     ----------
     - **graph** : nx.DiGraph
-        Grafo direcionado do NetworkX (retornado por build_fold_predicate_graph ou similar).
+        NetworkX directed graph (returned by build_fold_predicate_graph or similar).
         
     - **predicates_df** : pd.DataFrame
-        DataFrame com informações dos predicados. Colunas obrigatórias:
-        - 'rule': Regra do predicado (ex: "Ca ka <= 25.5")
-        - 'zone': Nome da zona espectral
-        - 'thresholds': Valor do threshold
-        - 'operator': "<=" ou ">"
+        DataFrame with predicate information. Required columns:
+        - 'rule': Predicate rule (e.g., "Ca ka <= 25.5")
+        - 'zone': Spectral zone name
+        - 'thresholds': Threshold value
+        - 'operator': "<=" or ">"
     
     Returns
     -------
     - **lrc_df** : pd.DataFrame
-        DataFrame com as seguintes colunas:
-        - **Node**: Nome do nó (regra do predicado ou 'Class_A'/'Class_B')
-        - **Local_Reaching_Centrality**: Valor da LRC (quanto maior, mais importante)
-        - **Zone**: Nome da zona espectral (None para nós terminais)
-        - **Threshold**: Valor do threshold (None para nós terminais)
-        - **Operator**: Operador da regra (None para nós terminais)
+        DataFrame with the following columns:
+        - **Node**: Node name (predicate rule or 'Class_A'/'Class_B')
+        - **Local_Reaching_Centrality**: LRC value (higher = more important)
+        - **Zone**: Spectral zone name (None for terminal nodes)
+        - **Threshold**: Threshold value (None for terminal nodes)
+        - **Operator**: Rule operator (None for terminal nodes)
         
-        **Ordenação**: Decrescente por LRC (nós mais importantes primeiro)
+        **Sorting**: Descending by LRC (most important nodes first)
     """
     import networkx as nx
     import pandas as pd
     import numpy as np
     
-    print(f"\nProcessando LRC do grafo...")
+    print(f"\nProcessing graph LRC...")
     
-    # 1. CALCULAR LRC PARA CADA NÓ
+    # 1. COMPUTE LRC FOR EACH NODE
     local_reaching_centrality = {}
     for node in graph.nodes():
         try:
             lrc_val = nx.local_reaching_centrality(graph, node, weight='weight')
         except ZeroDivisionError:
-            # Ocorre quando o cálculo interno do NetworkX tenta dividir por zero.
-            # Neste caso, fixamos a LRC como 0.0 para manter a execução e a consistência.
+            # Occurs when the internal NetworkX computation attempts division by zero.
+            # In this case, LRC is set to 0.0 to maintain execution and consistency.
             lrc_val = 0.0
         local_reaching_centrality[node] = lrc_val
     
-    # Ordenar por LRC (decrescente)
+    # Sort by LRC (descending)
     sorted_lrc = sorted(
         local_reaching_centrality.items(),
         key=lambda x: x[1],
         reverse=True
     )
     
-    # 2. CRIAR DATAFRAME COM LRC
+    # 2. CREATE DATAFRAME WITH LRC
     lrc_df = pd.DataFrame(sorted_lrc, columns=['Node', 'Local_Reaching_Centrality'])
     
-    # 3. EXTRAIR METADADOS DOS PREDICADOS
+    # 3. EXTRACT PREDICATE METADATA
     zones = []
     thresholds = []
     operators = []
     
     for node in lrc_df['Node']:
         if node.startswith('Class_'):
-            # Nó terminal
+            # Terminal node
             zones.append(None)
             thresholds.append(None)
             operators.append(None)
         else:
-            # Predicado: buscar metadados em predicates_df
+            # Predicate: retrieve metadata from predicates_df
             pred_row_filtered = predicates_df[predicates_df['rule'] == node]
             
             if len(pred_row_filtered) == 0:
-                # Predicado não encontrado (não deveria acontecer)
+                # Predicate not found (should not occur)
                 zones.append('Unknown')
                 thresholds.append(None)
                 operators.append(None)
@@ -961,7 +961,7 @@ def calculate_lrc_single_graph(graph, predicates_df):
                 thresholds.append(pred_row['thresholds'])
                 operators.append(pred_row['operator'])
     
-    # Adicionar colunas ao DataFrame
+    # Add columns to the DataFrame
     lrc_df['Zone'] = zones
     lrc_df['Threshold'] = thresholds
     lrc_df['Operator'] = operators
@@ -975,47 +975,47 @@ def get_zone_columns_from_predicate(
     Xcal_columns: pd.Index
 ) -> List[str]:
     """
-    Obtém as colunas espectrais correspondentes à zona de um predicado.
+    Retrieve the spectral columns corresponding to the zone of a given predicate.
     
-    Esta função identifica qual zona espectral está associada a um predicado
-    e retorna a lista de colunas (variaveis) que compõem essa zona.
+    This function identifies which spectral zone is associated with a predicate
+    and returns the list of columns (variables) composing that zone.
     
     Parameters
     ----------
     predicate_rule : str
-        Regra do predicado (ex: 'F1 <= 10.5')
+        Predicate rule (e.g., 'F1 <= 10.5')
     predicates_df : pd.DataFrame
-        DataFrame com informações dos predicados (colunas: 'rule', 'zone', etc.)
+        DataFrame with predicate information (columns: 'rule', 'zone', etc.)
     spectral_cuts : list of tuples
-        Lista de cortes espectrais no formato [(nome, inicio, fim), ...]
+        List of spectral cuts in the format [(name, start, end), ...]
     Xcal_columns : pd.Index
-        Índice das colunas do DataFrame de calibração (energias)
+        Column index of the calibration DataFrame (energies)
     
     Returns
     -------
     list
-        Lista de nomes de colunas (strings) que compõem a zona espectral
+        List of column names (strings) composing the spectral zone
     
     Raises
     ------
     ValueError
-        Se a zona não for encontrada nos spectral_cuts
+        If the zone is not found in spectral_cuts
     KeyError
-        Se o predicado não existir em predicates_df
+        If the predicate does not exist in predicates_df
     
     Example
     -------
     >>> zone_cols = get_zone_columns_from_predicate('F1 <= 10.5', predicates_df, spectral_cuts, Xcal.columns)
-    >>> print(f"Zona contém {len(zone_cols)} colunas: {zone_cols[:3]}...")
+    >>> print(f"Zone contains {len(zone_cols)} columns: {zone_cols[:3]}...")
     """
-    # 1. Encontrar a zona associada ao predicado
+    # 1. Find the zone associated with the predicate
     mask = predicates_df['rule'] == predicate_rule
     if not mask.any():
-        raise KeyError(f"Predicado '{predicate_rule}' não encontrado em predicates_df")
+        raise KeyError(f"Predicate '{predicate_rule}' not found in predicates_df")
     
     zone_name = predicates_df.loc[mask, 'zone'].values[0]
     
-    # 2. Encontrar os limites da zona nos spectral_cuts
+    # 2. Find the zone boundaries in spectral_cuts
     zone_start, zone_end = None, None
     for cut in spectral_cuts:
         if len(cut) == 3:
@@ -1031,13 +1031,13 @@ def get_zone_columns_from_predicate(
             break
     
     if zone_start is None or zone_end is None:
-        raise ValueError(f"Zona '{zone_name}' não encontrada em spectral_cuts")
+        raise ValueError(f"Zone '{zone_name}' not found in spectral_cuts")
     
-    # 3. Selecionar colunas dentro do intervalo
-    # Converter nomes de colunas para numérico quando possível
+    # 3. Select columns within the interval
+    # Convert column names to numeric when possible
     col_numeric = pd.to_numeric(Xcal_columns.astype(str), errors='coerce')
     
-    # Máscara para colunas dentro do intervalo [zone_start, zone_end]
+    # Mask for columns within the interval [zone_start, zone_end]
     mask_cols = (~np.isnan(col_numeric)) & (col_numeric >= zone_start) & (col_numeric <= zone_end)
     
     zone_columns = list(Xcal_columns[mask_cols])
@@ -1047,30 +1047,30 @@ def get_zone_columns_from_predicate(
 def spectral_perturbation_importance(model, X, y_pred_original, spectral_cuts, 
                                       perturbation_value=0, metric='mean_abs_diff'):
     """
-    Perturba regiões espectrais e avalia o impacto nas predições do modelo.
+    Perturb spectral regions and evaluate the impact on model predictions.
     
-    Parâmetros:
-    -----------
+    Parameters
+    ----------
     model : estimator
-        Modelo treinado (ex: PLS-DA)
+        Trained model (e.g., PLS-DA)
     X : pd.DataFrame
-        Dados espectrais originais (amostras x wavelengths)
+        Original spectral data (samples x wavelengths)
     y_pred_original : array-like
-        Predições originais do modelo
+        Original model predictions
     spectral_cuts : list of tuples
-        Lista de tuplas (nome_zona, inicio, fim) definindo regiões espectrais
+        List of tuples (zone_name, start, end) defining spectral regions
     perturbation_value : float, default=0
-        Valor a ser usado na perturbação (0 para zerar, 1 para mudar para 1, etc)
+        Value to use for perturbation (0 to zero out, 1 to set to 1, etc.)
     metric : str, default='mean_abs_diff'
-        Métrica para calcular a importância: 'mean_abs_diff', 'mean_diff', 'mean_relative_dev'.
-        - 'mean_abs_diff': média da diferença absoluta
-        - 'mean_diff': média da diferença (com sinal)
-        - 'mean_relative_dev': média do desvio relativo (cuidado com divisão por zero)
+        Metric to compute importance: 'mean_abs_diff', 'mean_diff', 'mean_relative_dev'.
+        - 'mean_abs_diff': mean of the absolute difference
+        - 'mean_diff': mean of the signed difference
+        - 'mean_relative_dev': mean of the relative deviation (caution with division by zero)
     
-    Retorna:
-    --------
+    Returns
+    -------
     pd.DataFrame
-        DataFrame com zona espectral e importância (diferença média nas predições)
+        DataFrame with spectral zone and importance (mean prediction difference)
     """
     import pandas as pd
     import numpy as np
@@ -1078,15 +1078,15 @@ def spectral_perturbation_importance(model, X, y_pred_original, spectral_cuts,
     results = []
     
     for zone_name, start, end in spectral_cuts:
-        # Criar cópia dos dados para perturbação
+        # Create a copy of the data for perturbation
         X_perturbed = X.copy()
-        # Identificar colunas dentro do range da zona espectral
+        # Identify columns within the spectral zone range
         cols_to_perturb = [col for col in X.columns if start <= float(col) <= end]
-        # Perturbar as colunas (mudar para o valor especificado)
+        # Perturb the columns (set to the specified value)
         X_perturbed[cols_to_perturb] = perturbation_value
-        # Fazer predição com dados perturbados
+        # Predict with perturbed data
         y_pred_perturbed = model.predict(X_perturbed)
-        # Calcular diferença entre predições
+        # Compute the difference between predictions
         if metric == 'mean_abs_diff':
             importance = np.mean(np.abs(y_pred_original - y_pred_perturbed))
         elif metric == 'mean_diff':
@@ -1096,11 +1096,11 @@ def spectral_perturbation_importance(model, X, y_pred_original, spectral_cuts,
             rel_dev = (y_pred_perturbed - y_pred_original) / y_pred_original_safe
             importance = np.nanmean(rel_dev)
         else:
-            raise ValueError(f"Métrica '{metric}' não suportada. Use 'mean_abs_diff', 'mean_diff' ou 'mean_relative_dev'.")
+            raise ValueError(f"Metric '{metric}' not supported. Use 'mean_abs_diff', 'mean_diff', or 'mean_relative_dev'.")
         
         if metric == 'mean_relative_dev' or metric == 'mean_diff':
-            pass  # importance já tem o sinal
-            # Armazenar resultados
+            pass  # importance already retains the sign
+            # Store results
             results.append({
                 'Zone': zone_name,
                 'Start': start,
@@ -1110,7 +1110,7 @@ def spectral_perturbation_importance(model, X, y_pred_original, spectral_cuts,
                 'N_Features': len(cols_to_perturb)
             })
         else:
-            # Armazenar resultados
+            # Store results
             results.append({
                 'Zone': zone_name,
                 'Start': start,
@@ -1119,7 +1119,7 @@ def spectral_perturbation_importance(model, X, y_pred_original, spectral_cuts,
                 'N_Features': len(cols_to_perturb)
             })
 
-    # Criar DataFrame e ordenar por importância
+    # Create DataFrame and sort by importance
     results_df = pd.DataFrame(results)
     if metric == 'mean_relative_dev' or metric == 'mean_diff':
         results_df = results_df.sort_values(by='Abs_Importance', ascending=False).reset_index(drop=True)
@@ -1143,108 +1143,108 @@ def calculate_predicate_perturbation(
     save_detailed_results: bool = True
 ) -> Dict:
     """
-    Calcula a importância de cada predicado usando Perturbação Espectral.
+    Compute the importance of each predicate using Spectral Perturbation.
     
-    Esta função é uma alternativa à permutação. Em vez de permutar valores,
-    ela substitui os valores da zona espectral por um valor fixo (ex: 0), ou de acordo 
-    com uma estatística como a média, mediana, máximo ou mínimo da coluna.
-    Em seguida ela mede o impacto (mudança) na predição do modelo.
+    This function serves as an alternative to permutation-based approaches. Instead of
+    permuting values, it replaces the spectral zone values with a fixed value (e.g., 0)
+    or with a column-wise statistic such as the mean, median, maximum, or minimum.
+    It then measures the impact (change) on the model predictions.
     
-    Suporta tanto tarefas de REGRESSÃO quanto de CLASSIFICAÇÃO através do parâmetro `aim`.
+    Both REGRESSION and CLASSIFICATION tasks are supported via the `aim` parameter.
     
     Parameters
     ----------
     estimator : sklearn estimator
-        Modelo treinado com método predict().
-        Para classificação com certas métricas, também pode requerer:
-        - predict_proba(): para métrica 'probability_shift'
-        - decision_function(): para métrica 'decision_function_shift'
+        Trained model with a predict() method.
+        For classification with certain metrics, it may also require:
+        - predict_proba(): for the 'probability_shift' metric
+        - decision_function(): for the 'decision_function_shift' metric
         
     Xcalclass_prep : pd.DataFrame
-        Dataset de calibração pré-processado (n_samples × n_features)
+        Pre-processed calibration dataset (n_samples × n_features)
         
     folds_struct : dict
-        Estrutura de folds no formato:
+        Fold structure in the format:
         {'Fold_1': {'rule1': DataFrame, 'rule2': DataFrame, ...}, ...}
         
     predicates_df : pd.DataFrame
-        DataFrame com informações dos predicados (colunas: 'rule', 'zone', etc.)
+        DataFrame with predicate information (columns: 'rule', 'zone', etc.)
         
     spectral_cuts : list of tuples
-        Lista de cortes espectrais: [(nome, inicio, fim), ...]
+        List of spectral cuts: [(name, start, end), ...]
         
-    y_calclass : pd.Series ou np.ndarray, optional
-        Rótulos verdadeiros das amostras. Obrigatório para métricas de classificação
-        que comparam com ground truth (ex: 'accuracy_drop', 'f1_drop').
+    y_calclass : pd.Series or np.ndarray, optional
+        True sample labels. Required for classification metrics
+        that compare against ground truth (e.g., 'accuracy_drop', 'f1_drop').
         
     aim : str, default='regression'
-        Tipo de tarefa:
-        - 'regression': usa predict() e métricas numéricas contínuas
-        - 'classification': usa predict(), predict_proba() ou decision_function()
-                           dependendo da métrica escolhida
+        Task type:
+        - 'regression': uses predict() and continuous numerical metrics
+        - 'classification': uses predict(), predict_proba(), or decision_function()
+                           depending on the chosen metric
         
     perturbation_value : float, default=0
-        Valor usado para perturbar a zona quando perturbation_mode='constant'
+        Value used to perturb the zone when perturbation_mode='constant'
         
     perturbation_mode : str, default='constant'
-        Modo de perturbação:
-        - 'constant': usa perturbation_value para todas as colunas (comportamento original)
-        - 'mean': substitui cada coluna pela sua média
-        - 'median': substitui cada coluna pela sua mediana
-        - 'min': substitui cada coluna pelo seu valor mínimo
-        - 'max': substitui cada coluna pelo seu valor máximo
+        Perturbation mode:
+        - 'constant': uses perturbation_value for all columns (original behavior)
+        - 'mean': replaces each column by its mean
+        - 'median': replaces each column by its median
+        - 'min': replaces each column by its minimum value
+        - 'max': replaces each column by its maximum value
         
     stats_source : str, default='full'
-        Fonte dos dados para calcular estatísticas:
-        - 'full': usa todo o dataset (Xcalclass_prep)
-        - 'predicate': usa apenas as amostras do predicado
+        Data source for computing statistics:
+        - 'full': uses the entire dataset (Xcalclass_prep)
+        - 'predicate': uses only samples belonging to the predicate
         
     metric : str, default='mean_abs_diff'
-        Métrica para calcular importância. As métricas disponíveis dependem do `aim`:
+        Metric for computing importance. Available metrics depend on `aim`:
         
-        **PARA aim='regression':**
-        - 'mean_abs_diff': Média da diferença absoluta entre predições (|y_orig - y_pert|)
-        - 'mean_diff': Média da diferença com sinal (y_orig - y_pert)
-        - 'mean_relative_dev': Média do desvio relativo ((y_pert - y_orig) / y_orig)
+        **For aim='regression':**
+        - 'mean_abs_diff': Mean of the absolute difference between predictions (|y_orig - y_pert|)
+        - 'mean_diff': Mean of the signed difference (y_orig - y_pert)
+        - 'mean_relative_dev': Mean of the relative deviation ((y_pert - y_orig) / y_orig)
         
-        **PARA aim='classification':**
-        - 'prediction_change_rate': Proporção de amostras que mudaram de classe após 
-          perturbação. Valores de 0 a 1, onde 1 = todas mudaram. Não requer y_calclass.
-          Usa: estimator.predict()
+        **For aim='classification':**
+        - 'prediction_change_rate': Proportion of samples that changed class after
+          perturbation. Values from 0 to 1, where 1 = all changed. Does not require y_calclass.
+          Uses: estimator.predict()
           
-        - 'accuracy_drop': Queda na acurácia após perturbação (acc_orig - acc_pert).
-          Valores positivos indicam queda de performance. Requer y_calclass.
-          Usa: estimator.predict()
+        - 'accuracy_drop': Accuracy decrease after perturbation (acc_orig - acc_pert).
+          Positive values indicate performance degradation. Requires y_calclass.
+          Uses: estimator.predict()
           
-        - 'f1_drop': Queda no F1-score após perturbação (f1_orig - f1_pert).
-          Valores positivos indicam queda de performance. Requer y_calclass.
-          Usa: estimator.predict()
+        - 'f1_drop': F1-score decrease after perturbation (f1_orig - f1_pert).
+          Positive values indicate performance degradation. Requires y_calclass.
+          Uses: estimator.predict()
           
-        - 'probability_shift': Média da diferença absoluta nas probabilidades preditas.
-          Mede quanto as probabilidades mudam após perturbação. Não requer y_calclass.
-          Usa: estimator.predict_proba() - REQUER modelo com predict_proba (ex: SVC com probability=True)
+        - 'probability_shift': Mean of the absolute difference in predicted probabilities.
+          Measures how probabilities change after perturbation. Does not require y_calclass.
+          Uses: estimator.predict_proba() - REQUIRES a model with predict_proba (e.g., SVC with probability=True)
           
-        - 'decision_function_shift': Média da diferença absoluta nos valores da 
-          decision function. Útil para SVM e modelos lineares. Não requer y_calclass.
-          Usa: estimator.decision_function() - REQUER modelo com decision_function (ex: SVC, LinearSVC)
+        - 'decision_function_shift': Mean of the absolute difference in decision function
+          values. Useful for SVM and linear models. Does not require y_calclass.
+          Uses: estimator.decision_function() - REQUIRES a model with decision_function (e.g., SVC, LinearSVC)
         
     verbose : bool, default=False
-        Se True, imprime detalhes do progresso
+        If True, prints progress details
         
     save_detailed_results : bool, default=True
-        Se True, salva resultados detalhados
+        If True, saves detailed results
     
     Returns
     -------
     dict
-        Dicionário no formato compatível com calculate_predicate_metrics_permutation:
+        Dictionary in a format compatible with calculate_predicate_metrics_permutation:
         {'Fold_1': DataFrame({'Predicate': [...], 'Perturbation': [...]}), ...}
         
     Notes
     -----
-    Compatibilidade de métricas com modelos sklearn:
+    Metric compatibility with sklearn models:
     
-    | Modelo           | predict_change_rate | accuracy_drop | probability_shift | decision_function_shift |
+    | Model            | predict_change_rate | accuracy_drop | probability_shift | decision_function_shift |
     |------------------|---------------------|---------------|-------------------|-------------------------|
     | SVC              | ✓                   | ✓             | ✓ (probability=True) | ✓                    |
     | LinearSVC        | ✓                   | ✓             | ✗                 | ✓                       |
@@ -1253,11 +1253,11 @@ def calculate_predicate_perturbation(
     | KNeighbors       | ✓                   | ✓             | ✓                 | ✗                       |
     | PLSRegression*   | ✓                   | ✓             | ✗                 | ✗                       |
     
-    *PLSRegression para classificação usa threshold em predict() contínuo.
+    *PLSRegression for classification uses a threshold on continuous predict() output.
     
     Examples
     --------
-    >>> # Exemplo com REGRESSÃO (PLSRegression)
+    >>> # Example with REGRESSION (PLSRegression)
     >>> results = calculate_predicate_perturbation(
     ...     estimator=pls_model,
     ...     Xcalclass_prep=X_prep,
@@ -1268,7 +1268,7 @@ def calculate_predicate_perturbation(
     ...     metric='mean_abs_diff'
     ... )
     
-    >>> # Exemplo com CLASSIFICAÇÃO (SVC)
+    >>> # Example with CLASSIFICATION (SVC)
     >>> results = calculate_predicate_perturbation(
     ...     estimator=svc_model,
     ...     Xcalclass_prep=X_prep,
@@ -1280,7 +1280,7 @@ def calculate_predicate_perturbation(
     ...     metric='prediction_change_rate'
     ... )
     
-    >>> # Exemplo com probability_shift (SVC com probability=True)
+    >>> # Example with probability_shift (SVC with probability=True)
     >>> svc_proba = SVC(kernel='rbf', probability=True)
     >>> results = calculate_predicate_perturbation(
     ...     estimator=svc_proba,
@@ -1292,31 +1292,31 @@ def calculate_predicate_perturbation(
     ...     metric='probability_shift'
     ... )
     """
-    # VALIDAÇÃO DE ENTRADAS
+    # INPUT VALIDATION
     
-    # Verificar se o estimator tem método predict
+    # Verify that the estimator has a predict method
     if not hasattr(estimator, 'predict'):
-        # Lança erro se o modelo não tiver método predict
-        raise ValueError(f"O estimator deve ter método predict(). Tipo: {type(estimator)}")
+        # Raise error if the model lacks a predict method
+        raise ValueError(f"The estimator must have a predict() method. Type: {type(estimator)}")
     
-    # Verificar se folds_struct é dicionário
+    # Verify that folds_struct is a dictionary
     if not isinstance(folds_struct, dict):
-        # Lança erro se a estrutura de folds não for dicionário
-        raise TypeError("folds_struct deve ser um dicionário")
+        # Raise error if the fold structure is not a dictionary
+        raise TypeError("folds_struct must be a dictionary")
     
-    # Verificar colunas obrigatórias em predicates_df
-    required_cols = ['rule', 'zone']  # Colunas mínimas necessárias
+    # Verify required columns in predicates_df
+    required_cols = ['rule', 'zone']  # Minimum required columns
     missing_cols = [c for c in required_cols if c not in predicates_df.columns]
     if missing_cols:
-        # Lança erro se faltar alguma coluna obrigatória
-        raise KeyError(f"Colunas faltando em predicates_df: {missing_cols}")
+        # Raise error if any required column is missing
+        raise KeyError(f"Missing columns in predicates_df: {missing_cols}")
     
-    # Validar aim
+    # Validate aim
     valid_aims = {'regression', 'classification'}
     if aim not in valid_aims:
-        raise ValueError(f"aim deve ser um de {valid_aims}. Recebido: {aim}")
+        raise ValueError(f"aim must be one of {valid_aims}. Received: {aim}")
     
-    # Definir métricas válidas para cada aim
+    # Define valid metrics for each aim
     regression_metrics = {'mean_abs_diff', 'mean_diff', 'mean_relative_dev'}
     classification_metrics = {
         'prediction_change_rate', 
@@ -1326,162 +1326,162 @@ def calculate_predicate_perturbation(
         'decision_function_shift'
     }
     
-    # Validar métrica de acordo com aim
+    # Validate metric according to aim
     if aim == 'regression':
         if metric not in regression_metrics:
             raise ValueError(
-                f"Para aim='regression', metric deve ser um de {regression_metrics}. "
-                f"Recebido: '{metric}'"
+                f"For aim='regression', metric must be one of {regression_metrics}. "
+                f"Received: '{metric}'"
             )
     else:  # classification
         if metric not in classification_metrics:
             raise ValueError(
-                f"Para aim='classification', metric deve ser um de {classification_metrics}. "
-                f"Recebido: '{metric}'"
+                f"For aim='classification', metric must be one of {classification_metrics}. "
+                f"Received: '{metric}'"
             )
         
-        # Verificar requisitos específicos de cada métrica de classificação
+        # Verify specific requirements for each classification metric
         if metric == 'probability_shift':
             if not hasattr(estimator, 'predict_proba'):
                 raise ValueError(
-                    f"A métrica 'probability_shift' requer estimator com predict_proba(). "
-                    f"Tipo recebido: {type(estimator)}. "
-                    f"Dica: para SVC, use SVC(probability=True)"
+                    f"The 'probability_shift' metric requires an estimator with predict_proba(). "
+                    f"Received type: {type(estimator)}. "
+                    f"Hint: for SVC, use SVC(probability=True)"
                 )
         
         if metric == 'decision_function_shift':
             if not hasattr(estimator, 'decision_function'):
                 raise ValueError(
-                    f"A métrica 'decision_function_shift' requer estimator com decision_function(). "
-                    f"Tipo recebido: {type(estimator)}. "
-                    f"Modelos compatíveis: SVC, LinearSVC, LogisticRegression, etc."
+                    f"The 'decision_function_shift' metric requires an estimator with decision_function(). "
+                    f"Received type: {type(estimator)}. "
+                    f"Compatible models: SVC, LinearSVC, LogisticRegression, etc."
                 )
         
         if metric in ['accuracy_drop', 'f1_drop']:
             if y_calclass is None:
                 raise ValueError(
-                    f"A métrica '{metric}' requer y_calclass (rótulos verdadeiros). "
-                    f"Forneça y_calclass como parâmetro."
+                    f"The '{metric}' metric requires y_calclass (true labels). "
+                    f"Provide y_calclass as a parameter."
                 )
     
-    # Converter y_calclass para Series se necessário
+    # Convert y_calclass to Series if necessary
     if y_calclass is not None:
         if isinstance(y_calclass, np.ndarray):
             y_calclass = pd.Series(y_calclass)
     
-    # INICIALIZAÇÃO
+    # INITIALIZATION
     
-    # Dicionário para armazenar resultados finais (compatível com pipeline existente)
+    # Dictionary to store final results (compatible with existing pipeline)
     metrics_results_dict = {}
     
-    # Dicionário para armazenar resultados detalhados
+    # Dictionary to store detailed results
     detailed_results = {}
     
-    # Nome da coluna de métrica no DataFrame de saída
+    # Metric column name in the output DataFrame
     metric_name = 'Perturbation'
     
-    # Contadores para estatísticas
-    total_folds = len(folds_struct)  # Total de folds a processar
-    total_predicates_processed = 0   # Contador de predicados processados
-    total_predicates_skipped = 0     # Contador de predicados ignorados
+    # Counters for statistics
+    total_folds = len(folds_struct)  # Total folds to process
+    total_predicates_processed = 0   # Counter of processed predicates
+    total_predicates_skipped = 0     # Counter of skipped predicates
     
-    # Validar perturbation_mode
+    # Validate perturbation_mode
     valid_modes = {'constant', 'mean', 'median', 'min', 'max'}
     if perturbation_mode not in valid_modes:
-        raise ValueError(f"perturbation_mode deve ser um de {valid_modes}. Recebido: {perturbation_mode}")
+        raise ValueError(f"perturbation_mode must be one of {valid_modes}. Received: {perturbation_mode}")
     
-    # Validar stats_source
+    # Validate stats_source
     valid_sources = {'full', 'predicate'}
     if stats_source not in valid_sources:
-        raise ValueError(f"stats_source deve ser um de {valid_sources}. Recebido: {stats_source}")
+        raise ValueError(f"stats_source must be one of {valid_sources}. Received: {stats_source}")
     
-    # Log inicial se verbose
+    # Initial log if verbose
     if verbose:
         print("=" * 70)
-        print("PERTURBATION IMPORTANCE PARA PREDICADOS")
+        print("PERTURBATION IMPORTANCE FOR PREDICATES")
         print("=" * 70)
-        print(f"Tipo de tarefa (aim): {aim}")
-        print(f"Modo de perturbação: {perturbation_mode}")
+        print(f"Task type (aim): {aim}")
+        print(f"Perturbation mode: {perturbation_mode}")
         if perturbation_mode == 'constant':
-            print(f"Valor de perturbação: {perturbation_value}")
+            print(f"Perturbation value: {perturbation_value}")
         else:
-            print(f"Fonte das estatísticas: {stats_source}")
-        print(f"Métrica: {metric}")
-        print(f"Total de folds: {total_folds}")
+            print(f"Statistics source: {stats_source}")
+        print(f"Metric: {metric}")
+        print(f"Total folds: {total_folds}")
         if aim == 'classification' and y_calclass is not None:
-            print(f"Classes em y_calclass: {y_calclass.unique().tolist()}")
+            print(f"Classes in y_calclass: {y_calclass.unique().tolist()}")
         print()
     
-    # LOOP PRINCIPAL: PROCESSAR CADA FOLD
+    # MAIN LOOP: PROCESS EACH FOLD
     
-    # Iterar sobre cada fold na estrutura
+    # Iterate over each fold in the structure
     for fold_idx, (fold_name, predicates_dict) in enumerate(folds_struct.items()):
         
-        # Log do fold atual
+        # Log current fold
         if verbose:
-            print(f"\n[{fold_name}] Processando {len(predicates_dict)} predicados...")
+            print(f"\n[{fold_name}] Processing {len(predicates_dict)} predicates...")
         
-        # Verificar se o fold está vazio
+        # Check if the fold is empty
         if len(predicates_dict) == 0:
-            # Se vazio, criar DataFrame vazio e pular para próximo fold
+            # If empty, create an empty DataFrame and skip to the next fold
             if verbose:
-                print(f"  VAZIO - pulando")
+                print(f"  EMPTY - skipping")
             metrics_results_dict[fold_name] = pd.DataFrame({
                 'Predicate': [],
                 metric_name: []
             })
             continue
         
-        # Dicionário temporário para métricas deste fold
+        # Temporary dictionary for metrics of this fold
         fold_metrics = {}
         
-        # Dicionário temporário para resultados detalhados deste fold
+        # Temporary dictionary for detailed results of this fold
         fold_detailed = {}
         
-        # LOOP: PROCESSAR CADA PREDICADO NO FOLD
+        # LOOP: PROCESS EACH PREDICATE IN THE FOLD
         
-        # Iterar sobre cada predicado do fold
+        # Iterate over each predicate in the fold
         for pred_rule, df_info in predicates_dict.items():
             
-            # Incrementar contador de predicados processados
+            # Increment processed predicates counter
             total_predicates_processed += 1
             
-            # 1. OBTER ÍNDICES DE AMOSTRAS DO PREDICADO
+            # 1. OBTAIN SAMPLE INDICES OF THE PREDICATE
             
-            # Extrair índices das amostras que pertencem a este predicado
+            # Extract indices of samples belonging to this predicate
             sample_indices = df_info['Sample_Index'].values.tolist()
             
-            # Número de amostras no predicado
+            # Number of samples in the predicate
             n_samples = len(sample_indices)
             
-            # Log do predicado atual
+            # Log current predicate
             if verbose:
-                print(f"  Predicado: {pred_rule} (n={n_samples})")
+                print(f"  Predicate: {pred_rule} (n={n_samples})")
             
-            # 2. VERIFICAR CASOS LIMITES
+            # 2. CHECK EDGE CASES
             
-            # Se não há amostras, não é possível calcular importância
+            # If there are no samples, importance cannot be computed
             if n_samples == 0:
                 if verbose:
-                    print(f"    SKIP: n_samples=0 (sem amostras)")
-                # Atribuir importância zero
+                    print(f"    SKIP: n_samples=0 (no samples)")
+                # Assign zero importance
                 fold_metrics[pred_rule] = 0.0
-                # Salvar detalhes
+                # Save details
                 fold_detailed[pred_rule] = {
                     'importance': 0.0,
                     'n_samples': n_samples,
                     'zone_columns': [],
                     'skip_reason': 'n_samples = 0'
                 }
-                # Incrementar contador de skips
+                # Increment skip counter
                 total_predicates_skipped += 1
                 continue
             
-            # 3. OBTER INFORMAÇÕES DA ZONA ESPECTRAL
+            # 3. OBTAIN SPECTRAL ZONE INFORMATION
             
-            # Tentar obter colunas da zona espectral do predicado
+            # Attempt to retrieve the spectral zone columns of the predicate
             try:
-                # Usar função auxiliar para obter colunas da zona
+                # Use auxiliary function to obtain zone columns
                 zone_cols = get_zone_columns_from_predicate(
                     predicate_rule=pred_rule,
                     predicates_df=predicates_df,
@@ -1489,9 +1489,9 @@ def calculate_predicate_perturbation(
                     Xcal_columns=Xcalclass_prep.columns
                 )
             except (KeyError, ValueError) as e:
-                # Se erro ao obter zona, atribuir importância zero
+                # If error when obtaining zone, assign zero importance
                 if verbose:
-                    print(f"    ERRO ao obter zona: {e}")
+                    print(f"    ERROR retrieving zone: {e}")
                 fold_metrics[pred_rule] = 0.0
                 fold_detailed[pred_rule] = {
                     'importance': 0.0,
@@ -1502,35 +1502,35 @@ def calculate_predicate_perturbation(
                 total_predicates_skipped += 1
                 continue
             
-            # Verificar se a zona tem colunas
+            # Check if the zone has columns
             if len(zone_cols) == 0:
-                # Se zona vazia, atribuir importância zero
+                # If zone is empty, assign zero importance
                 if verbose:
-                    print(f"    SKIP: zona espectral vazia")
+                    print(f"    SKIP: empty spectral zone")
                 fold_metrics[pred_rule] = 0.0
                 fold_detailed[pred_rule] = {
                     'importance': 0.0,
                     'n_samples': n_samples,
                     'zone_columns': [],
-                    'skip_reason': 'zona vazia'
+                    'skip_reason': 'empty zone'
                 }
                 total_predicates_skipped += 1
                 continue
             
-            # Log das colunas da zona
+            # Log zone columns
             if verbose:
-                print(f"    Zona: {len(zone_cols)} colunas")
+                print(f"    Zone: {len(zone_cols)} columns")
             
-            # 4. OBTER LIMITES DA ZONA PARA PERTURBAÇÃO
+            # 4. OBTAIN ZONE BOUNDARIES FOR PERTURBATION
             
-            # Encontrar nome da zona associada ao predicado
+            # Find the zone name associated with the predicate
             mask_pred = predicates_df['rule'] == pred_rule
             zone_name = predicates_df.loc[mask_pred, 'zone'].values[0]
             
-            # Encontrar limites (start, end) da zona nos spectral_cuts
+            # Find zone boundaries (start, end) in spectral_cuts
             zone_start, zone_end = None, None
             for cut in spectral_cuts:
-                # Extrair nome e limites do cut
+                # Extract name and boundaries from the cut
                 if len(cut) == 3:
                     name, start, end = cut
                 elif len(cut) == 2:
@@ -1539,54 +1539,54 @@ def calculate_predicate_perturbation(
                 else:
                     continue
                 
-                # Verificar se é a zona correta
+                # Check if it is the correct zone
                 if name == zone_name:
                     zone_start, zone_end = float(start), float(end)
                     break
             
-            # Se não encontrou limites, pular
+            # If boundaries were not found, skip
             if zone_start is None or zone_end is None:
                 if verbose:
-                    print(f"    SKIP: limites da zona não encontrados")
+                    print(f"    SKIP: zone boundaries not found")
                 fold_metrics[pred_rule] = 0.0
                 fold_detailed[pred_rule] = {
                     'importance': 0.0,
                     'n_samples': n_samples,
                     'zone_columns': zone_cols,
-                    'skip_reason': 'limites não encontrados'
+                    'skip_reason': 'boundaries not found'
                 }
                 total_predicates_skipped += 1
                 continue
             
-            # 5. EXTRAIR DADOS DAS AMOSTRAS DO PREDICADO
+            # 5. EXTRACT PREDICATE SAMPLE DATA
             
-            # Extrair subconjunto de dados para as amostras do predicado
+            # Extract data subset for predicate samples
             X_eval = Xcalclass_prep.iloc[sample_indices].copy()
             
-            # Extrair rótulos verdadeiros se disponíveis (para métricas de classificação)
+            # Extract true labels if available (for classification metrics)
             if y_calclass is not None:
                 y_true_eval = y_calclass.iloc[sample_indices]
             else:
                 y_true_eval = None
             
-            # 6. PERTURBAR ZONA ESPECTRAL
+            # 6. PERTURB SPECTRAL ZONE
             
-            # Criar cópia dos dados para perturbação
+            # Create a copy of the data for perturbation
             X_perturbed = X_eval.copy()
             
-            # Aplicar perturbação de acordo com o modo escolhido
+            # Apply perturbation according to the chosen mode
             if perturbation_mode == 'constant':
-                # Comportamento original: valor fixo para todas as colunas
+                # Original behavior: fixed value for all columns
                 X_perturbed[zone_cols] = perturbation_value
             else:
-                # Calcular estatísticas por coluna
-                # Escolher fonte dos dados para estatísticas
+                # Compute column-wise statistics
+                # Choose data source for statistics
                 if stats_source == 'full':
                     stats_data = Xcalclass_prep[zone_cols]
                 else:  # 'predicate'
                     stats_data = X_eval[zone_cols]
                 
-                # Calcular estatística de acordo com o modo
+                # Compute statistic according to the mode
                 if perturbation_mode == 'mean':
                     col_stats = stats_data.mean(axis=0)
                 elif perturbation_mode == 'median':
@@ -1596,188 +1596,188 @@ def calculate_predicate_perturbation(
                 elif perturbation_mode == 'max':
                     col_stats = stats_data.max(axis=0)
                 
-                # Substituir cada coluna pela sua estatística
+                # Replace each column by its statistic
                 for col in zone_cols:
                     X_perturbed[col] = col_stats[col]
             
-            # 7. CALCULAR IMPORTÂNCIA BASEADA NO AIM E MÉTRICA ESCOLHIDA
+            # 7. COMPUTE IMPORTANCE BASED ON AIM AND SELECTED METRIC
             
             if aim == 'regression':
-                # MODO REGRESSÃO: usa predict() e métricas numéricas contínuas
+                # REGRESSION MODE: uses predict() and continuous numerical metrics
                 
-                # Fazer predição com dados originais
+                # Perform prediction with original data
                 y_pred_original = estimator.predict(X_eval)
                 y_pred_original = np.array(y_pred_original).flatten()
                 
-                # Fazer predição com dados perturbados
+                # Perform prediction with perturbed data
                 y_pred_perturbed = estimator.predict(X_perturbed)
                 y_pred_perturbed = np.array(y_pred_perturbed).flatten()
                 
-                # Calcular importância de acordo com a métrica
+                # Compute importance according to the selected metric
                 if metric == 'mean_abs_diff':
-                    # Média da diferença absoluta entre predições
+                    # Mean absolute difference between predictions
                     importance = np.mean(np.abs(y_pred_original - y_pred_perturbed))
                 elif metric == 'mean_diff':
-                    # Média da diferença (com sinal)
+                    # Mean difference (signed)
                     importance = np.mean(y_pred_original - y_pred_perturbed)
                 elif metric == 'mean_relative_dev':
-                    # Média do desvio relativo (cuidado com divisão por zero)
+                    # Mean relative deviation (caution with division by zero)
                     y_safe = np.where(y_pred_original == 0, np.nan, y_pred_original)
                     rel_dev = (y_pred_perturbed - y_pred_original) / y_safe
                     importance = np.nanmean(rel_dev)
                 
-                # Para ranking, usar valor absoluto para métricas com sinal
+                # For ranking, use absolute value for signed metrics
                 if metric in ['mean_diff', 'mean_relative_dev']:
                     importance_for_ranking = np.abs(importance)
                 else:
                     importance_for_ranking = importance
                     
             else:  # aim == 'classification'
-                # MODO CLASSIFICAÇÃO: usa predict(), predict_proba() ou decision_function()
+                # CLASSIFICATION MODE: uses predict(), predict_proba(), or decision_function()
                 
                 if metric == 'prediction_change_rate':
                     # -----------------------------------------------------------------
-                    # PREDICTION CHANGE RATE: proporção de amostras que mudaram de classe
-                    # Usa: estimator.predict()
+                    # PREDICTION CHANGE RATE: proportion of samples that changed class
+                    # Uses: estimator.predict()
                     # -----------------------------------------------------------------
                     
-                    # Fazer predição com dados originais
+                    # Perform prediction with original data
                     y_pred_original = estimator.predict(X_eval)
                     y_pred_original = np.array(y_pred_original).flatten()
                     
-                    # Fazer predição com dados perturbados
+                    # Perform prediction with perturbed data
                     y_pred_perturbed = estimator.predict(X_perturbed)
                     y_pred_perturbed = np.array(y_pred_perturbed).flatten()
                     
-                    # Calcular proporção de amostras que mudaram de classe
-                    # Valores de 0 a 1, onde 1 = todas mudaram
+                    # Compute proportion of samples that changed class
+                    # Values range from 0 to 1, where 1 = all samples changed
                     importance = np.mean(y_pred_original != y_pred_perturbed)
                     importance_for_ranking = importance
                     
                 elif metric == 'accuracy_drop':
                     # -----------------------------------------------------------------
-                    # ACCURACY DROP: queda na acurácia após perturbação
-                    # Usa: estimator.predict() + y_true
+                    # ACCURACY DROP: decrease in accuracy after perturbation
+                    # Uses: estimator.predict() + y_true
                     # -----------------------------------------------------------------
                     
-                    # Fazer predição com dados originais
+                    # Perform prediction with original data
                     y_pred_original = estimator.predict(X_eval)
                     y_pred_original = np.array(y_pred_original).flatten()
                     
-                    # Fazer predição com dados perturbados
+                    # Perform prediction with perturbed data
                     y_pred_perturbed = estimator.predict(X_perturbed)
                     y_pred_perturbed = np.array(y_pred_perturbed).flatten()
                     
-                    # Calcular acurácia original e após perturbação
+                    # Compute accuracy before and after perturbation
                     acc_original = accuracy_score(y_true_eval, y_pred_original)
                     acc_perturbed = accuracy_score(y_true_eval, y_pred_perturbed)
                     
-                    # Queda na acurácia (positivo = piora)
+                    # Accuracy drop (positive value indicates degradation)
                     importance = acc_original - acc_perturbed
                     importance_for_ranking = np.abs(importance)
                     
                 elif metric == 'f1_drop':
                     # -----------------------------------------------------------------
-                    # F1 DROP: queda no F1-score após perturbação
-                    # Usa: estimator.predict() + y_true
+                    # F1 DROP: decrease in F1-score after perturbation
+                    # Uses: estimator.predict() + y_true
                     # -----------------------------------------------------------------
                     
-                    # Fazer predição com dados originais
+                    # Perform prediction with original data
                     y_pred_original = estimator.predict(X_eval)
                     y_pred_original = np.array(y_pred_original).flatten()
                     
-                    # Fazer predição com dados perturbados
+                    # Perform prediction with perturbed data
                     y_pred_perturbed = estimator.predict(X_perturbed)
                     y_pred_perturbed = np.array(y_pred_perturbed).flatten()
                     
-                    # Calcular F1 original e após perturbação
-                    # Usa average='weighted' para suportar multiclasse
+                    # Compute F1-score before and after perturbation
+                    # Uses average='weighted' to support multiclass scenarios
                     f1_original = f1_score(y_true_eval, y_pred_original, average='weighted')
                     f1_perturbed = f1_score(y_true_eval, y_pred_perturbed, average='weighted')
                     
-                    # Queda no F1 (positivo = piora)
+                    # F1-score drop (positive value indicates degradation)
                     importance = f1_original - f1_perturbed
                     importance_for_ranking = np.abs(importance)
                     
                 elif metric == 'probability_shift':
                     # -----------------------------------------------------------------
-                    # PROBABILITY SHIFT: diferença nas probabilidades preditas
-                    # Usa: estimator.predict_proba()
+                    # PROBABILITY SHIFT: difference in predicted probabilities
+                    # Uses: estimator.predict_proba()
                     # -----------------------------------------------------------------
                     
-                    # Obter probabilidades originais
+                    # Obtain original probabilities
                     prob_original = estimator.predict_proba(X_eval)
                     
-                    # Obter probabilidades após perturbação
+                    # Obtain probabilities after perturbation
                     prob_perturbed = estimator.predict_proba(X_perturbed)
                     
-                    # Calcular diferença nas probabilidades
-                    # IMPORTANTE: Para classificação, predict_proba retorna (n_samples, n_classes)
-                    # onde cada linha soma 1.0. Para evitar contar mudanças redundantes,
-                    # calculamos a mudança POR AMOSTRA (soma das diferenças absolutas por linha)
-                    # e depois fazemos a média entre amostras.
+                    # Compute difference in predicted probabilities
+                    # IMPORTANT: For classification, predict_proba returns (n_samples, n_classes)
+                    # where each row sums to 1.0. To avoid counting redundant changes,
+                    # the change is computed PER SAMPLE (sum of absolute differences per row)
+                    # and subsequently averaged across all samples.
                     #
-                    # Exemplo binário: [0.7, 0.3] → [0.6, 0.4]
-                    # - Sem correção: mean(|0.7-0.6| + |0.3-0.4|) = mean(0.1 + 0.1) = 0.2 
-                    # - Com correção: mean(|0.7-0.6| + |0.3-0.4|) / 2 = 0.1
+                    # Binary example: [0.7, 0.3] -> [0.6, 0.4]
+                    # - Without correction: mean(|0.7-0.6| + |0.3-0.4|) = mean(0.1 + 0.1) = 0.2 
+                    # - With correction: mean(|0.7-0.6| + |0.3-0.4|) / 2 = 0.1
                     #
-                    # Para k classes, dividimos por k para normalizar e obter valores
-                    # comparáveis entre problemas binários e multiclasse.
+                    # For k classes, division by k normalizes the values to ensure
+                    # comparability between binary and multiclass problems.
                     
                     n_classes = prob_original.shape[1]
                     
-                    # Calcular mudança total por amostra (soma sobre classes)
+                    # Compute total shift per sample (sum over classes)
                     shift_per_sample = np.sum(np.abs(prob_original - prob_perturbed), axis=1)
                     
-                    # Normalizar pelo número de classes (evita contar mudanças redundantes)
-                    # Dividir por 2 porque mudanças em probabilidades que somam 1 são simétricas
+                    # Normalize by the number of classes (avoids counting redundant changes)
+                    # Division by 2 accounts for the symmetry of probability changes summing to 1
                     shift_per_sample_normalized = shift_per_sample / 2.0
                     
-                    # Média sobre todas as amostras
+                    # Average over all samples
                     importance = np.mean(shift_per_sample_normalized)
                     importance_for_ranking = importance
                     
-                    # Para verbose, salvar as predições de classe também
+                    # For verbose output, also save class predictions
                     y_pred_original = estimator.predict(X_eval)
                     y_pred_perturbed = estimator.predict(X_perturbed)
                     
                 elif metric == 'decision_function_shift':
                     # -----------------------------------------------------------------
-                    # DECISION FUNCTION SHIFT: diferença nos valores da decision function
-                    # Usa: estimator.decision_function()
-                    # Útil para SVM e modelos lineares
+                    # DECISION FUNCTION SHIFT: difference in decision function values
+                    # Uses: estimator.decision_function()
+                    # Applicable to SVM and linear models
                     # -----------------------------------------------------------------
                     
-                    # Obter valores da decision function originais
+                    # Obtain original decision function values
                     df_original = estimator.decision_function(X_eval)
                     df_original = np.array(df_original)
                     
-                    # Achatar se necessário (para classificação binária)
+                    # Flatten if necessary (for binary classification)
                     if df_original.ndim == 1:
                         df_original = df_original.flatten()
                     
-                    # Obter valores da decision function após perturbação
+                    # Obtain decision function values after perturbation
                     df_perturbed = estimator.decision_function(X_perturbed)
                     df_perturbed = np.array(df_perturbed)
                     
-                    # Achatar se necessário
+                    # Flatten if necessary
                     if df_perturbed.ndim == 1:
                         df_perturbed = df_perturbed.flatten()
                     
-                    # Calcular média da diferença absoluta
+                    # Compute mean absolute difference
                     importance = np.mean(np.abs(df_original - df_perturbed))
                     importance_for_ranking = importance
                     
-                    # Para verbose, salvar as predições de classe também
+                    # For verbose output, also save class predictions
                     y_pred_original = estimator.predict(X_eval)
                     y_pred_perturbed = estimator.predict(X_perturbed)
             
-            # 8. ARMAZENAR RESULTADOS
+            # 8. STORE RESULTS
             
-            # Armazenar importância para ranking
+            # Store importance for ranking
             fold_metrics[pred_rule] = importance_for_ranking
             
-            # Salvar detalhes completos
+            # Save complete details
             fold_detailed[pred_rule] = {
                 'importance': importance,
                 'importance_abs': np.abs(importance) if isinstance(importance, (int, float)) else importance,
@@ -1793,68 +1793,68 @@ def calculate_predicate_perturbation(
                 'metric': metric
             }
             
-            # Log da importância calculada
+            # Log computed importance
             if verbose:
                 print(f"    Importance: {importance:.6f}")
         
-        # CONVERTER PARA DATAFRAME (compatível com pipeline existente)
+        # CONVERT TO DATAFRAME (compatible with existing pipeline)
         
-        # Criar DataFrame a partir do dicionário de métricas
+        # Create DataFrame from metrics dictionary
         metrics_df = pd.DataFrame.from_dict(
             fold_metrics,
             orient='index',
             columns=[metric_name]
         )
         
-        # Adicionar coluna de predicado
+        # Add predicate column
         metrics_df.insert(0, 'Predicate', metrics_df.index)
         
-        # Resetar índice para ter índice numérico
+        # Reset index to numeric index
         metrics_df = metrics_df.reset_index(drop=True)
         
-        # Ordenar de forma DECRESCENTE (maiores valores = mais importantes)
+        # Sort in DESCENDING order (higher values = more important)
         metrics_df = metrics_df.sort_values(by=metric_name, ascending=False)
         
-        # Resetar índice após ordenação
+        # Reset index after sorting
         metrics_df = metrics_df.reset_index(drop=True)
         
-        # Armazenar resultado do fold
+        # Store fold result
         metrics_results_dict[fold_name] = metrics_df
         
-        # Armazenar resultados detalhados do fold
+        # Store detailed fold results
         detailed_results[fold_name] = fold_detailed
     
-    # RESUMO FINAL
+    # FINAL SUMMARY
     
-    # Imprimir resumo se verbose
+    # Print summary if verbose
     if verbose:
         print("\n" + "=" * 70)
-        print("RESUMO")
+        print("SUMMARY")
         print("=" * 70)
-        print(f"Tipo de tarefa (aim): {aim}")
-        print(f"Métrica utilizada: {metric}")
-        print(f"Folds processados: {total_folds}")
-        print(f"Predicados processados: {total_predicates_processed}")
-        print(f"Predicados ignorados: {total_predicates_skipped}")
+        print(f"Task type (aim): {aim}")
+        print(f"Metric used: {metric}")
+        print(f"Folds processed: {total_folds}")
+        print(f"Predicates processed: {total_predicates_processed}")
+        print(f"Predicates skipped: {total_predicates_skipped}")
         print()
-        # Mostrar resumo por fold
+        # Display per-fold summary
         for fold_name, df in metrics_results_dict.items():
-            # Ignorar chave especial de resultados detalhados
+            # Skip special detailed results key
             if fold_name.startswith('__'):
                 continue
-            print(f"  {fold_name}: {len(df)} predicados")
+            print(f"  {fold_name}: {len(df)} predicates")
     
-    # SALVAR RESULTADOS DETALHADOS (OPCIONAL)
+    # SAVE DETAILED RESULTS (OPTIONAL)
     
-    # Se solicitado, criar DataFrame com todos os detalhes
+    # If requested, create DataFrame with all details
     if save_detailed_results:
-        # Lista para armazenar linhas do DataFrame detalhado
+        # List to store rows for the detailed DataFrame
         detailed_rows = []
         
-        # Iterar sobre folds e predicados
+        # Iterate over folds and predicates
         for fold_name, fold_data in detailed_results.items():
             for pred_rule, pred_data in fold_data.items():
-                # Adicionar linha com informações do predicado
+                # Append row with predicate information
                 detailed_rows.append({
                     'fold': fold_name,
                     'predicate': pred_rule,
@@ -1868,27 +1868,27 @@ def calculate_predicate_perturbation(
                     'metric': pred_data.get('metric', metric)
                 })
         
-        # Criar DataFrame de resultados detalhados
+        # Create detailed results DataFrame
         detailed_df = pd.DataFrame(detailed_rows)
         
-        # Anexar como chave especial no dicionário de resultados
+        # Attach as a special key in the results dictionary
         metrics_results_dict['__detailed_perturbation_results__'] = detailed_df
     
-    # Retornar dicionário com resultados
+    # Return dictionary with results
     return metrics_results_dict
 
 
 def map_thresholds_to_natural(
-    lrc_df,                    # DataFrame com Zone e Threshold como colunas (espaço pré-processado)
-    zone_sums_preprocessed,    # zone_sums_df (pré-processado)
+    lrc_df,                    # DataFrame with Zone and Threshold as columns (preprocessed space)
+    zone_sums_preprocessed,    # zone_sums_df (preprocessed)
     zone_sums_natural          # zone_sums_df_original (natural)
 ):
     """
-    Mapeia thresholds do espaço pré-processado para o espaço natural
-    usando a amostra mais próxima como referência.
+    Maps thresholds from the preprocessed space to the natural space
+    using the nearest sample as a reference.
 
     Returns:
-        DataFrame com colunas adicionais: 'Threshold_Natural', 'Sample_Index', 'Approximation_Error', 'Node', 'Operator', 'Node_Natural'
+        DataFrame with additional columns: 'Threshold_Natural', 'Sample_Index', 'Approximation_Error', 'Node', 'Operator', 'Node_Natural'
     """
     result_df = lrc_df.copy()
 
@@ -1913,18 +1913,18 @@ def map_thresholds_to_natural(
 
         threshold = float(threshold_val)
 
-        # Encontrar índice da amostra mais próxima no espaço pré-processado
+        # Find the index of the nearest sample in the preprocessed space
         zone_values_prep = zone_sums_preprocessed[zone_name]
         distances = (zone_values_prep - threshold).abs()
-        closest_idx = distances.idxmin()  # índice da amostra mais próxima
+        closest_idx = distances.idxmin()  # index of the nearest sample
 
-        # Buscar valor correspondente no espaço natural
+        # Retrieve the corresponding value in the natural space
         natural_value = zone_sums_natural.loc[closest_idx, zone_name]
 
-        # Calcular erro de aproximação (no espaço pré-processado)
+        # Compute approximation error (in the preprocessed space)
         error = distances.loc[closest_idx]
 
-        # Montar Node_Natural (ex: "Zone > 0.123")
+        # Construct Node_Natural (e.g., "Zone > 0.123")
         if operator is not None and natural_value is not None:
             node_natural = f"{zone_name} {operator} {natural_value:.6f}"
         else:
@@ -1946,115 +1946,115 @@ def map_thresholds_to_natural(
 
 def aggregate_spectral_zones_pca(spectral_zones_dict):
     """
-    Agrega zonas espectrais usando PCA com 1 componente principal.
+    Aggregates spectral zones using PCA with a single principal component.
     
-    Para cada zona espectral, ajusta uma PCA com 1 componente e extrai:
-    - Scores: projeção das amostras na direção de máxima variância
-    - Loadings: pesos de cada variável na PC1
-    - Média: vetor de médias da zona (para reconstrução)
-    - Variância Explicada: fração da variância capturada pela PC1
+    For each spectral zone, a PCA with one component is fitted to extract:
+    - Scores: projection of information onto the direction of maximum variance
+    - Loadings: weights of each variable on PC1
+    - Mean: mean vector of the zone (for reconstruction)
+    - Variance Explained: fraction of the variance captured by PC1
     
     Parameters
     ----------
     spectral_zones_dict : dict
-        Dicionário retornado por extract_spectral_zones.
-        Chaves = nomes das zonas, Valores = DataFrames com dados espectrais.
+        Dictionary returned by extract_spectral_zones.
+        Keys = zone names, Values = DataFrames with spectral data.
     
     Returns
     -------
     scores_df : pd.DataFrame
-        DataFrame com scores da PC1 para cada zona (amostras x zonas).
+        DataFrame with PC1 scores for each zone (samples x zones).
     pca_info_dict : dict
-        Dicionário com informações da PCA para cada zona:
-        - 'loadings': vetor de loadings da PC1
-        - 'mean': vetor de médias da zona
-        - 'variance_explained': fração de variância explicada
-        - 'columns': nomes das colunas originais (para reconstrução)
+        Dictionary with PCA information for each zone:
+        - 'loadings': PC1 loadings vector
+        - 'mean': zone mean vector
+        - 'variance_explained': fraction of variance explained
+        - 'columns': original column names (for reconstruction)
     """
     from sklearn.decomposition import PCA
     import pandas as pd
 
-    scores_dict = {}  # armazena scores de cada zona
-    pca_info_dict = {}  # armazena informações para reconstrução
+    scores_dict = {}  # stores scores for each zone
+    pca_info_dict = {}  # stores information for reconstruction
     
     for zone_name, zone_df in spectral_zones_dict.items():
-        # 1: Preparação dos dados
-        X_zone = zone_df.values  # converter para numpy array
+        # 1: Data preparation
+        X_zone = zone_df.values  # convert to numpy array
         
-        # 2: Ajuste da PCA com 1 componente
+        # 2: Fit PCA with 1 component
         pca = PCA(n_components=1)
-        scores = pca.fit_transform(X_zone)  # scores da PC1 (n_samples, 1)
+        scores = pca.fit_transform(X_zone)  # PC1 scores (n_samples, 1)
         
-        # 3: Extração das informações
-        loadings = pca.components_[0]  # loadings da PC1 (d_m,)
-        mean_vector = pca.mean_  # vetor de médias (d_m,)
-        variance_explained = pca.explained_variance_ratio_[0]  # fração de variância
+        # 3: Extract information
+        loadings = pca.components_[0]  # PC1 loadings (d_m,)
+        mean_vector = pca.mean_  # mean vector (d_m,)
+        variance_explained = pca.explained_variance_ratio_[0]  # variance fraction
         
-        # 4: Armazenamento
-        scores_dict[zone_name] = scores.flatten()  # converter para 1D
+        # 4: Storage
+        scores_dict[zone_name] = scores.flatten()  # convert to 1D
         
         pca_info_dict[zone_name] = {
             'loadings': loadings,
             'mean': mean_vector,
             'variance_explained': variance_explained,
-            'columns': zone_df.columns.tolist(),  # nomes das colunas originais
-            'pca_model': pca  # modelo PCA completo (para uso futuro)
+            'columns': zone_df.columns.tolist(),  # original column names
+            'pca_model': pca  # complete PCA model (for future use)
         }
         
-        # Log informativo
-        print(f"Zona '{zone_name}': VE = {variance_explained:.2%}, "
-              f"dim = {len(loadings)} variáveis")
+        # Informative log
+        print(f"Zone '{zone_name}': VE = {variance_explained:.2%}, "
+              f"dim = {len(loadings)} variables")
     
-    # Criar DataFrame com todos os scores
+    # Create DataFrame with all scores
     scores_df = pd.DataFrame(scores_dict)
     
     return scores_df, pca_info_dict
 
 def reconstruct_threshold_to_spectrum(threshold_value, zone_name, pca_info_dict):
     """
-    Reconstrói um threshold escalar (no espaço dos scores) para o espaço 
-    espectral original, gerando um "espectro de threshold" multivariado.
+    Reconstructs a scalar threshold (in score space) to the original spectral
+    space, yielding a multivariate "threshold spectrum".
     
-    Fórmula matemática:
+    Mathematical formula:
         τ = mean + threshold_value * loadings
     
     Parameters
     ----------
     threshold_value : float
-        Valor do threshold no espaço dos scores da PC1.
+        Threshold value in the PC1 score space.
     zone_name : str
-        Nome da zona espectral.
+        Name of the spectral zone.
     pca_info_dict : dict
-        Dicionário com informações da PCA (retornado por aggregate_spectral_zones_pca).
+        Dictionary with PCA information (returned by aggregate_spectral_zones_pca).
     
     Returns
     -------
     threshold_spectrum : pd.Series
-        Espectro de threshold com índice = energias/comprimentos de onda originais.
+        Threshold spectrum with index = original energies/wavelengths.
     """
     import pandas as pd
-    # Recuperar informações da PCA
+    # Retrieve PCA information
     pca_info = pca_info_dict[zone_name]
     loadings = pca_info['loadings']
     mean_vector = pca_info['mean']
     columns = pca_info['columns']
     
-    # Reconstrução: τ = mean + q * loadings
+    # Reconstruction: τ = mean + q * loadings
     threshold_spectrum = mean_vector + threshold_value * loadings
     
-    # Converter para Series com índice original
+    # Convert to Series with original index
     threshold_spectrum = pd.Series(threshold_spectrum, index=columns, name=f'threshold_{threshold_value:.4f}')
     
     return threshold_spectrum
 
 def extract_predicate_info(predicate_rule):
     """
-    Extrai informações de uma regra de predicado.
+    Extracts information from a predicate rule.
     
     Parameters
     ----------
     predicate_rule : str
-        Regra no formato "zone_name <= threshold" ou "zone_name > threshold"
+        Rule in the format "zone_name <= threshold" or "zone_name > threshold"
     
     Returns
     -------
@@ -2067,7 +2067,7 @@ def extract_predicate_info(predicate_rule):
         parts = predicate_rule.split('>')
         operator = '>'
     else:
-        raise ValueError(f"Operador não reconhecido em: {predicate_rule}")
+        raise ValueError(f"Unrecognized operator in: {predicate_rule}")
     
     zone_name = parts[0].strip()
     threshold_value = float(parts[1].strip())
@@ -2080,16 +2080,16 @@ def extract_predicate_info(predicate_rule):
 
 def extract_zone_from_predicate(predicate_rule):
     """
-    Extrai o nome da zona espectral a partir da regra do predicado.
+    Extracts the spectral zone name from a predicate rule.
     
     Parameters
     ----------
     predicate_rule : str
-        Regra no formato "zone_name <= threshold" ou "zone_name > threshold"
+        Rule in the format "zone_name <= threshold" or "zone_name > threshold"
     
     Returns
     -------
-    str : Nome da zona espectral
+    str : Spectral zone name
     
     Examples
     --------
@@ -2103,7 +2103,7 @@ def extract_zone_from_predicate(predicate_rule):
     elif '>' in predicate_rule:
         return predicate_rule.split('>')[0].strip()
     else:
-        raise ValueError(f"Operador não reconhecido em: {predicate_rule}")
+        raise ValueError(f"Unrecognized operator in: {predicate_rule}")
 
 
 def build_predicate_graph(bags_result, predicate_ranking_dict, 
@@ -2111,77 +2111,77 @@ def build_predicate_graph(bags_result, predicate_ranking_dict,
                             random_state=42, show_details=True,
                             var_exp=False, pca_info_dict=None):
     """
-    Constrói um grafo direcionado de predicados onde os pesos das arestas
-    são baseados na Covariância (ou outra métrica) do predicado de ORIGEM.
+    Constructs a directed graph of predicates where edge weights are based
+    on the Covariance (or another metric) of the SOURCE predicate.
     
     Parameters
     ----------
     - **bags_result** : dict
-        Dicionário com bags de predicados:
+        Dictionary with predicate bags:
         {'Bag_1': {'Ca ka <= 25.5': DataFrame, ...}, 'Bag_2': {...}, ...}
         
     - **predicate_ranking_dict** : dict
-        Dicionário com rankings de predicados segundo uma métrica para cada bag:
+        Dictionary with predicate rankings according to a metric for each bag:
         {'Bag_1': DataFrame(['Predicate', metric_column]), 'Bag_2': ...}
         
     - **metric_column** : str, default='Cov'
-        Nome da coluna no predicate_ranking_dict que contém a métrica de ordenação.
-        Permite flexibilidade para usar 'Cov', 'Permutation', etc.
+        Name of the column in predicate_ranking_dict containing the ranking metric.
+        Provides flexibility to use 'Cov', 'Permutation', etc.
         
     - **random_state** : int, default=42
-        Semente para desempate aleatório de arestas bidirecionais.
+        Seed for random tie-breaking of bidirectional edges.
         
     - **show_details** : bool, default=True
-        Se True, imprime detalhes sobre remoção de arestas bidirecionais.
+        If True, prints details about bidirectional edge removal.
         
     - **var_exp** : bool, default=False
-        Se True, multiplica os pesos das arestas pela variância explicada (PC1)
-        da zona espectral correspondente ao predicado de origem.
+        If True, multiplies edge weights by the explained variance (PC1)
+        of the spectral zone corresponding to the source predicate.
         
     - **pca_info_dict** : dict, optional
-        Dicionário com informações da PCA para cada zona (obrigatório se var_exp=True).
-        Chaves = nomes das zonas, Valores = dict com 'variance_explained'.
+        Dictionary with PCA information for each zone (required if var_exp=True).
+        Keys = zone names, Values = dict with 'variance_explained'.
     
     Returns
     -------
     - **DG** : nx.DiGraph
-        Grafo direcionado com pesos baseados na métrica acumulada.
+        Directed graph with weights based on the accumulated metric.
 
     """
     import networkx as nx
     import numpy as np
     import pandas as pd
     
-    # Validação dos parâmetros var_exp
+    # Validate var_exp parameters
     if var_exp:
         if pca_info_dict is None:
-            raise ValueError("pca_info_dict é obrigatório quando var_exp=True")
+            raise ValueError("pca_info_dict is required when var_exp=True")
     
-    # Define semente para reprodutibilidade nos desempates
+    # Set seed for reproducibility in tie-breaking
     np.random.seed(random_state)
     
-    # FASE 1: INICIALIZAÇÃO DO GRAFO
+    # PHASE 1: GRAPH INITIALIZATION
     DG = nx.DiGraph()
     DG.add_node('Class_A', node_type='terminal', class_label='A')
     DG.add_node('Class_B', node_type='terminal', class_label='B')
     
-    # FASE 2: CONSTRUÇÃO DOS CAMINHOS E ACUMULAÇÃO DE PESOS
+    # PHASE 2: PATH CONSTRUCTION AND WEIGHT ACCUMULATION
     for bag_name, bag_predicates_dict in bags_result.items():
         
-        # 2.1: Obtém o ranking de métricas para este bag
+        # 2.1: Obtain the metric ranking for this bag
         predicate_ranking = predicate_ranking_dict[bag_name]
         ordered_predicates = predicate_ranking['Predicate'].tolist()
         
-        # Filtra apenas predicados que existem neste bag específico
+        # Filter only predicates that exist in this specific bag
         ordered_predicates = [p for p in ordered_predicates if p in bag_predicates_dict.keys()]
         
         if len(ordered_predicates) == 0:
             continue
         
-        # 2.2: Cria dicionário de lookup para métrica
+        # 2.2: Create lookup dictionary for metric
         ranking_lookup = dict(zip(predicate_ranking['Predicate'], predicate_ranking[metric_column]))
         
-        # 2.3: Constrói arestas entre predicados consecutivos
+        # 2.3: Construct edges between consecutive predicates
         for i in range(len(ordered_predicates) - 1):
             pred_current = ordered_predicates[i]
             pred_next = ordered_predicates[i + 1]
@@ -2189,21 +2189,21 @@ def build_predicate_graph(bags_result, predicate_ranking_dict,
             DG.add_node(pred_current, node_type='predicate')
             DG.add_node(pred_next, node_type='predicate')
             
-            ranking_value = float(ranking_lookup[pred_current]) # valor da métrica do predicado de ORIGEM
+            ranking_value = float(ranking_lookup[pred_current]) # metric value of the SOURCE predicate
             
-            # Ponderar pela variância explicada se var_exp=True
+            # Weight by explained variance if var_exp=True
             if var_exp:
-                zone_name = extract_zone_from_predicate(pred_current) # extrai zona do predicado atual
-                if zone_name in pca_info_dict: # verifica se zona existe no dicionário de PCA
-                    ranking_value *= pca_info_dict[zone_name]['variance_explained'] # pondera pelo VE da zona
+                zone_name = extract_zone_from_predicate(pred_current) # extract zone from current predicate
+                if zone_name in pca_info_dict: # check if zone exists in PCA dictionary
+                    ranking_value *= pca_info_dict[zone_name]['variance_explained'] # weight by zone VE
             
-            # Acumular peso se aresta já existe
+            # Accumulate weight if edge already exists
             if DG.has_edge(pred_current, pred_next):
                 DG[pred_current][pred_next]['weight'] += ranking_value
             else:
                 DG.add_edge(pred_current, pred_next, weight=ranking_value, bag=bag_name)
         
-        # 2.4: Conecta o ÚLTIMO predicado ao nó terminal
+        # 2.4: Connect the LAST predicate to the terminal node
         last_pred = ordered_predicates[-1]
         DG.add_node(last_pred, node_type='predicate')
         
@@ -2212,7 +2212,7 @@ def build_predicate_graph(bags_result, predicate_ranking_dict,
         majority_class = class_counts.idxmax()
         terminal_node = f'Class_{majority_class}'
         
-        ranking_last_value = float(ranking_lookup[last_pred]) # valor da métrica do último predicado é o peso da aresta para o terminal
+        ranking_last_value = float(ranking_lookup[last_pred]) # metric value of the last predicate is the edge weight to the terminal
         
         if var_exp:
             zone_name = extract_zone_from_predicate(last_pred)
@@ -2224,7 +2224,7 @@ def build_predicate_graph(bags_result, predicate_ranking_dict,
         else:
             DG.add_edge(last_pred, terminal_node, weight=ranking_last_value, bag=bag_name)
 
-    # FASE 3: IDENTIFICAÇÃO DE ARESTAS BIDIRECIONAIS
+    # PHASE 3: IDENTIFICATION OF BIDIRECTIONAL EDGES
     bidirectional_pairs = []
     processed = set()
     
@@ -2238,9 +2238,9 @@ def build_predicate_graph(bags_result, predicate_ranking_dict,
             processed.add((u, v))
             processed.add((v, u))
     
-    print(f"\nTotal de pares bidirecionais encontrados: {len(bidirectional_pairs)}")
+    print(f"\nTotal bidirectional pairs found: {len(bidirectional_pairs)}")
     
-    # FASE 4: RESOLUÇÃO DE ARESTAS BIDIRECIONAIS
+    # PHASE 4: RESOLUTION OF BIDIRECTIONAL EDGES
     n_removed = 0
     
     for pair in bidirectional_pairs:
@@ -2250,31 +2250,31 @@ def build_predicate_graph(bags_result, predicate_ranking_dict,
         if w_fwd > w_rev:
             DG.remove_edge(v, u)
             if show_details:
-                print(f"Removida: {v} -> {u} ({w_rev:.4f}) | Mantida: {u} -> {v} ({w_fwd:.4f})")
+                print(f"Removed: {v} -> {u} ({w_rev:.4f}) | Kept: {u} -> {v} ({w_fwd:.4f})")
         elif w_rev > w_fwd:
             DG.remove_edge(u, v)
             if show_details:
-                print(f"Removida: {u} -> {v} ({w_fwd:.4f}) | Mantida: {v} -> {u} ({w_rev:.4f})")
+                print(f"Removed: {u} -> {v} ({w_fwd:.4f}) | Kept: {v} -> {u} ({w_rev:.4f})")
         else:
-            # Empate: escolha aleatória
+            # Tie: random selection
             if np.random.rand() > 0.5:
                 DG.remove_edge(v, u)
                 if show_details:
-                    print(f"Empate! Removida: {v} -> {u} ({w_rev:.4f})")
+                    print(f"Tie! Removed: {v} -> {u} ({w_rev:.4f})")
             else:
                 DG.remove_edge(u, v)
                 if show_details:
-                    print(f"Empate! Removida: {u} -> {v} ({w_fwd:.4f})")
+                    print(f"Tie! Removed: {u} -> {v} ({w_fwd:.4f})")
         n_removed += 1
 
-    # FASE 5: RESUMO FINAL
+    # PHASE 5: FINAL SUMMARY
     print(f"\n{'='*70}")
-    print("RESUMO DO GRAFO CONSTRUÍDO")
+    print("CONSTRUCTED GRAPH SUMMARY")
     print(f"{'='*70}")
-    print(f"Arestas iniciais: {DG.number_of_edges() + n_removed} | Removidas: {n_removed}")
-    print(f"Nós predicados: {len([n for n, attr in DG.nodes(data=True) if attr['node_type'] == 'predicate'])}")
-    print(f"Métrica: {metric_column}")
+    print(f"Initial edges: {DG.number_of_edges() + n_removed} | Removed: {n_removed}")
+    print(f"Predicate nodes: {len([n for n, attr in DG.nodes(data=True) if attr['node_type'] == 'predicate'])}")
+    print(f"Metric: {metric_column}")
     if var_exp:
-        print("Ponderação por variância explicada: ATIVADA")
+        print("Weighting by explained variance: ENABLED")
     
     return DG
