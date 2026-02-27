@@ -1,0 +1,19 @@
+Shap;Permutation;LRC_perturbation;LRC_covariance
+Rb ka + Br kb;K ka;K ka;Rh ka Compton
+K ka;Rb ka + Br kb;Rh ka Compton;Rb ka + Br kb
+Rh ka Compton;K kb + Ca ka;Rb ka + Br kb;Rh kb Compton
+Cl;Rh ka Compton;background3;K ka
+Rh ka Rayleigh;Cl;Cl;Rh ka Rayleigh
+K kb + Ca ka;Rh ka Rayleigh;Rh kb Compton;background3
+Rh kb Compton;background3;Fe;background2
+background3;Br ka;K kb + Ca ka;Cl
+S;Cu;Rh ka Rayleigh;Rh kb Rayleigh
+Br ka;Zn;Zn;Br ka
+Cu;Rh kb Compton;background2;K kb + Ca ka
+Fe;Fe;S;
+Mn;S;Cu;
+background2;background1;background1;
+background1;background2;Br ka;
+Zn;Rh kb Rayleigh;Rh kb Rayleigh;
+Rh kb Rayleigh;Mn;Mn;
+;;;
