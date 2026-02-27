@@ -1,11 +1,16 @@
 Method_1;Method_2;RBO_Score
+Shap;Permutation;0.9145781665566666
+Shap;LRC_perturbation;0.8792390583466667
 Permutation;LRC_perturbation;0.8792390583466667
 VIP_Score;Reg_Coefficient;0.8177822803066667
 VIP_Score;Permutation;0.8088881773033334
 VIP_Score;LRC_perturbation;0.78369157697
 LRC_perturbation;LRC_covariance;0.7644797855133334
+VIP_Score;Shap;0.7567559687600001
 Reg_Coefficient;Permutation;0.7279878910533333
+Reg_Coefficient;Shap;0.72606629072
 VIP_Score;LRC_covariance;0.7030065825099999
+Shap;LRC_covariance;0.6993688937233333
 Permutation;LRC_covariance;0.6981582855133334
 Reg_Coefficient;LRC_perturbation;0.6378956907199999
 Reg_Coefficient;LRC_covariance;0.5668248044699999
