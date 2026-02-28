@@ -1042,7 +1042,7 @@ def get_zone_columns_from_predicate(
     zone_columns = list(Xcal_columns[mask_cols])
     
     return zone_columns
-
+# unused
 def spectral_perturbation_importance(model, X, y_pred_original, spectral_cuts, 
                                       perturbation_value=0, metric='mean_abs_diff'):
     """
