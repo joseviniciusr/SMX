@@ -1,10 +1,11 @@
 """
 Debugging utilities – optional analysis helpers (VIP, regression coefficients,
-SHAP per zone, RBO rank comparison).
+SHAP per zone, SVM P-vector per zone, RBO rank comparison).
 
 Toggle execution with the ``IS_DEBUGGING`` flag in the caller script.
 """
 
+import numpy as np
 import pandas as pd
 import rbo
 
@@ -85,6 +86,36 @@ def shap_per_zone(shap_csv_path, spectral_cuts):
     ).reset_index(drop=True)
     print(shap_unique_df)
     return shap_unique_df
+
+
+def svm_pvector_per_zone(svm_model, X_columns, spectral_cuts):
+    """Compute SVM P-vector importance and return a zone-deduplicated DataFrame.
+
+    P-vector = |support_vectors.T @ dual_coefficients|
+    """
+    X_sv = svm_model.support_vectors_
+    alpha_dual = svm_model.dual_coef_.ravel()
+    importance = np.abs(X_sv.T @ alpha_dual)
+
+    pvector_df = pd.DataFrame({
+        'energy': X_columns,
+        'Pvector': importance
+    })
+    pvector_df = pvector_df.sort_values(
+        by='Pvector', ascending=False
+    ).reset_index(drop=True)
+
+    pvector_df['Zone'] = pvector_df['energy'].map(
+        _map_energy_to_zone(pvector_df['energy'], spectral_cuts)
+    )
+
+    pvector_unique_df = pvector_df.drop_duplicates(
+        subset=['Zone'], keep='first'
+    ).reset_index(drop=True)
+    pvector_unique_df = pvector_unique_df.sort_values(
+        by='Pvector', ascending=False
+    ).reset_index(drop=True)
+    return pvector_unique_df
 
 
 def rbo_rank_comparison(features_importance, output_path):
