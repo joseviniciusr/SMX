@@ -2279,7 +2279,7 @@ def build_predicate_graph(bags_result, predicate_ranking_dict,
     return DG
 
 
-def permutation_importance_per_zone(estimator, X, spectral_cuts, n_repeats=10, random_state=42):
+def permutation_importance_per_zone(estimator, X, spectral_cuts, n_repeats=10, random_state=42, scoring_fn=None):
     """
     Compute permutation feature importance and aggregate by spectral zone.
 
@@ -2294,6 +2294,10 @@ def permutation_importance_per_zone(estimator, X, spectral_cuts, n_repeats=10, r
         Number of permutation repeats per feature.
     - **random_state** : int, default=42
         Random seed.
+    - **scoring_fn** : callable, optional
+        Custom prediction function taking X and returning predictions.
+        If None, uses estimator.predict(). For MLP/SVM classification,
+        pass e.g. ``lambda X: model.predict_proba(X)[:, 1]``.
 
     Returns
     -------
@@ -2303,7 +2307,8 @@ def permutation_importance_per_zone(estimator, X, spectral_cuts, n_repeats=10, r
         Full per-feature permutation importance with zone mapping.
     """
     rng = np.random.RandomState(random_state)
-    baseline_pred = estimator.predict(X)
+    predict = scoring_fn if scoring_fn is not None else estimator.predict
+    baseline_pred = predict(X)
     importance_list = []
     X_arr = X.copy()
 
@@ -2312,7 +2317,7 @@ def permutation_importance_per_zone(estimator, X, spectral_cuts, n_repeats=10, r
         for _ in range(n_repeats):
             X_perm = X_arr.copy()
             X_perm[col] = rng.permutation(X_perm[col].values)
-            perm_pred = estimator.predict(X_perm)
+            perm_pred = predict(X_perm)
             diffs.append(np.mean(np.abs(baseline_pred - perm_pred)))
         importance_list.append(np.mean(diffs))
 
