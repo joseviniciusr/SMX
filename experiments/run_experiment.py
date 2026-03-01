@@ -423,11 +423,11 @@ def build_feature_importance_table(model_name, debugging_results,
 
     # Canonical column order per model type (model-specific first, then common)
     COLUMN_ORDER = {
-        'PLS': ['VIP_Score', 'Reg_Coefficient', 'Shap', 'Permutation',
+        'pls': ['VIP_Score', 'Reg_Coefficient', 'Shap', 'Permutation',
                  'LRC_perturbation', 'LRC_covariance'],
-        'SVM': ['SVM_pvector', 'Shap', 'Permutation',
+        'svm': ['SVM_pvector', 'Shap', 'Permutation',
                  'LRC_perturbation', 'LRC_covariance'],
-        'MLP': ['Shap', 'Permutation', 'LRC_perturbation', 'LRC_covariance'],
+        'mlp': ['Shap', 'Permutation', 'LRC_perturbation', 'LRC_covariance'],
     }
     ordered_cols = [c for c in COLUMN_ORDER.get(model_name, [])
                     if c in zone_lists]
