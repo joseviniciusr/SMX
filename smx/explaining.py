@@ -573,7 +573,7 @@ def bagging_predicates(zone_sums_df, y_predicted_numeric, predicates_df,
     
     return bags_dict
 
-def calculate_predicate_metrics(bags_result, metric='mutual_info', threshold=0.1, n_neighbors=10):
+def calculate_predicate_metrics(bags_result, metric='mutual_info', threshold=0.1, n_neighbors=10, min_predicates_per_bag=2):
     """
     Compute association metrics between aggregated spectral zone values 
     and model predictions for each predicate in each bag.
@@ -613,6 +613,12 @@ def calculate_predicate_metrics(bags_result, metric='mutual_info', threshold=0.1
         - Low values (3-5): more sensitive to local noise
         - Medium values (10-20): balance between sensitivity and robustness (recommended)
         - High values (>30): smoother, less sensitive to local variations
+    
+    - **min_predicates_per_bag** : int, optional (default=2)
+        Minimum number of predicates to keep per bag when the absolute threshold
+        filters out all predicates. Acts as an adaptive fallback: if no predicates
+        pass the threshold, the top ``min_predicates_per_bag`` predicates with
+        nonzero metric values are retained. Set to 0 to disable the fallback.
     
     Returns
     -------
@@ -759,7 +765,17 @@ def calculate_predicate_metrics(bags_result, metric='mutual_info', threshold=0.1
         
         # 3. FILTER BY THRESHOLD        
         n_before_filter = len(metrics_df)
-        metrics_df = metrics_df[metrics_df[metric_name] > threshold].reset_index(drop=True)
+        filtered_df = metrics_df[metrics_df[metric_name] > threshold].reset_index(drop=True)
+        
+        # Adaptive fallback: if threshold removes everything, keep top nonzero predicates
+        if len(filtered_df) == 0 and min_predicates_per_bag > 0:
+            nonzero_df = metrics_df[metrics_df[metric_name] > 0].reset_index(drop=True)
+            if len(nonzero_df) > 0:
+                filtered_df = nonzero_df.head(min_predicates_per_bag).reset_index(drop=True)
+                print(f"  {bag_name}: threshold {threshold} removed all predicates; "
+                      f"keeping top {len(filtered_df)} with nonzero {metric_name}")
+        
+        metrics_df = filtered_df
         n_after_filter = len(metrics_df)
         n_filtered = n_before_filter - n_after_filter
         
