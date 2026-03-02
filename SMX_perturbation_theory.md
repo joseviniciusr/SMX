@@ -273,7 +273,7 @@ $$
 N_P = 2 \times M \times K
 $$
 
-Na prática, predicados duplicados (gerados quando diferentes zonas possuem o mesmo valor de quantil) são removidos, resultando em $N_P' \leq N_P$ predicados únicos.
+Na prática, predicados duplicados (gerados quando as zonas possuem distribuição de valores muito proximos, gerando quantis iguais) são removidos, resultando em $N_P' \leq N_P$ predicados únicos.
 
 ### 6.4 Matriz Indicadora de Predicados
 
@@ -337,7 +337,7 @@ $$
 4. **Validação**: Se $|\mathcal{S}_b^{(j)}| < n_{\min}$ (e.g., 20% do total), o predicado é descartado deste bag por cobertura insuficiente.
 
 5. **Armazenamento**: Para cada predicado válido, armazena-se um DataFrame com:
-   - `Zone_Sum`: valor agregado da zona para as amostras satisfeitas
+   - `Zone_Sum`: valor agregado da zona para as amostras satisfeitas (o nome sum é mantido porque comecei construindo com agregacao de sooma e fiquei com preguica de mudar)
    - `Predicted_Y`: predição do modelo para essas amostras
    - `Sample_Index`: índices originais das amostras
 
@@ -362,7 +362,7 @@ O procedimento completo de bagging é repetido com diferentes sementes aleatóri
 
 ### 8.1 Filosofia da Perturbação
 
-A ideia central da perturbação espectral é simples e poderosa:
+A ideia central da perturbação espectral é simples, alinhada com faithfulness e a noção de importância causal:
 
 > **Se uma zona espectral é importante para a previsão do modelo, então "destruir" (perturbar) a informação nessa zona deve causar uma mudança significativa nas previsões.**
 
@@ -395,7 +395,7 @@ $$
 
 onde $\mathcal{S}_{\text{src}}$ é o conjunto fonte para cálculo da estatística (ver Seção 8.2.6).
 
-#### 8.2.3 Modo `median` (Mediana) ⭐ *Recomendado*
+#### 8.2.3 Modo `median` (Mediana) **Recomendado-Default**
 
 Cada variável da zona é substituída pela sua mediana:
 
@@ -421,7 +421,7 @@ $$
 
 Quando o modo de perturbação é baseado em uma estatística (média, mediana, min, max), é necessário definir **qual conjunto de amostras** é usado para calcular essa estatística:
 
-- `stats_source='full'` ⭐: Usa **todo o conjunto de calibração** $\mathbf{X}^{\text{prep}}$ para calcular a estatística. Esse é o padrão e a abordagem usada nos experimentos.
+- `stats_source='full'` (**Default**): Usa **todo o conjunto de calibração** $\mathbf{X}^{\text{prep}}$ para calcular a estatística. Esse é o padrão e a abordagem usada nos experimentos.
 - `stats_source='predicate'`: Usa apenas as **amostras que satisfazem o predicado** atual.
 
 A diferença é sutil, porém importante. Com `'full'`, a perturbação substitui os valores da zona pela estatística da população geral — uma perturbação em direção ao "comportamento médio". Com `'predicate'`, a perturbação é mais localizada.
@@ -480,7 +480,7 @@ Todo o dataset de calibração (n amostras)
 
 Quando o modelo é tratado como regressor (e.g., PLS-DA com saída contínua entre 0 e 1, ou PLS-R), utilizam-se métricas contínuas para quantificar o impacto da perturbação. Seja $\hat{y}_i$ a previsão original e $\hat{y}_i^{\text{pert}}$ a previsão após perturbação da zona.
 
-#### 8.4.1 `mean_abs_diff` — Diferença Absoluta Média ⭐ *Padrão para regressão*
+#### 8.4.1 `mean_abs_diff` — Diferença Absoluta Média **Padrão para regressão**
 
 $$
 \text{Imp}(P_j) = \frac{1}{|\mathcal{S}|}\sum_{i \in \mathcal{S}} |\hat{y}_i - \hat{y}_i^{\text{pert}}|
@@ -543,7 +543,7 @@ $$
 
 **Interpretação**: Análogo à queda de acurácia, mas usando F1-score (média ponderada para suporte de classes desbalanceadas). **Requer rótulos verdadeiros.**
 
-#### 8.5.4 `probability_shift` — Deslocamento de Probabilidade ⭐ *Padrão para classificação*
+#### 8.5.4 `probability_shift` — Deslocamento de Probabilidade  **Padrão para classificação**
 
 $$
 \text{Imp}(P_j) = \frac{1}{|\mathcal{S}|}\sum_{i \in \mathcal{S}} \frac{1}{2}\sum_{c=1}^{C} |p_{i,c} - p_{i,c}^{\text{pert}}|
@@ -646,7 +646,7 @@ RETORNAR metrics_dict
 
 ### 9.1 Motivação
 
-As importâncias calculadas pela perturbação (ou covariância/informação mútua) são **locais** — atribuídas a cada predicado individualmente dentro de cada bag. Para obter uma visão **global** da importância, o SMX constrói um **grafo dirigido** que codifica as relações entre predicados e as conecta a nós terminais de classe.
+Eu digo que as importâncias calculadas pela perturbação (ou covariância/informação mútua) são **semi-locais**, ou seja, atribuídas a cada predicado (não a uma amostra nem a todo o dataset, mas sim um grupo de amostras, por isso *semi*) dentro de cada bag. Para obter uma visão **global** da importância, o SMX constrói um **grafo dirigido** que codifica as relações entre predicados e as conecta a nós terminais de classe.
 
 ### 9.2 Estrutura do Grafo
 
@@ -1049,26 +1049,25 @@ O SMX é comparado com métodos tradicionais de explicabilidade de modelos espec
 
 ---
 
-## 16. Parâmetros Recomendados
+## 16. Parâmetros Testados
 
-Com base nos experimentos realizados em 8 datasets de XRF com 3 tipos de modelo:
+Os experimentos realizados em 8 datasets de XRF com 3 tipos de modelo utilizaram os seguintes parâmetros:
 
 | Parâmetro | Valor Recomendado | Justificativa |
 |-----------|------------------|---------------|
 | Quantis | $\{0.2, 0.4, 0.6, 0.8\}$ | Boa cobertura da distribuição |
-| `n_bags` | 10 | Equilíbrio entre robustez e custo |
-| `n_samples_per_bag` | 80% de $n$ | Representatividade sem excesso |
+| `n_bags` | 10 | - |
+| `n_samples_per_bag` | 80% de $n$ | Representatividade alta |
 | `min_samples_per_predicate` | 20% de $n$ | Garantia de cobertura mínima |
-| `replace` | `False` | Subamostragem preferida a bootstrap |
-| `sample_bagging` | `True` | Ativado para diversidade |
-| `predicate_bagging` | `False` | Todos os predicados avaliados em cada bag |
+| `replace` | `False` | - |
+| `sample_bagging` | `True` | A- |
+| `predicate_bagging` | `False` | TPara mitigar problemas com zonas espectrais ruidosas |
 | Sementes aleatórias | $\{0, 1, 2, 3\}$ | 4 repetições para robustez |
 | `perturbation_mode` | `'median'` | Robusta a outliers |
-| `stats_source` | `'full'` | Estatísticas da população inteira |
+| `stats_source` | `'full'` | - |
 | `metric` (regressão) | `'mean_abs_diff'` | Magnitude do impacto, sem viés direcional |
 | `metric` (classificação) | `'probability_shift'` | Sensível a mudanças graduais |
 | `var_exp` | `True` | Ponderar pela qualidade da representação PCA |
-| Threshold covariance | $0.01$ | Filtro mínimo para covariância |
 | Agregação LRC | Média entre sementes | Estável e representativa |
 | RBO | $p=0.7, k=10$ | Foco no topo do ranking |
 
@@ -1080,16 +1079,12 @@ O método SMX com perturbação espectral oferece um framework completo para a e
 
 1. **Uma nova filosofia de explicabilidade**: Combinar zonas espectrais com significado físico-químico, discretização por quantis, e teoria de grafos para produzir explicações que respeitam a semântica do domínio.
 
-2. **Perturbação como medida de importância**: Substituir informação espectral por o valor da mediana (ou outro estatístico) e medir o impacto nas previsões do modelo proporciona uma medida quasi-causal da relevância de cada zona espectral.
+2. **Perturbação como medida de importância**: Substituir informação espectral por o valor da mediana (ou outro estatístico) e medir o impacto nas previsões do modelo proporciona uma medida alinhada com **causalidade** e **faithfulness** da relevância de cada zona espectral.
 
 3. **O threshold multivariado**: Através da agregação PCA, o limiar escalar de um predicado pode ser reconstruído como um **espectro limiar** no espaço original — uma capacidade única que transforma regras abstratas em informação espectroscópica concreta e visualizável.
 
-4. **Robustez estatística**: O uso de bagging, múltiplas sementes, e agregação via LRC em grafos dirigidos confere estabilidade ao ranking de importância, reduzindo a sensibilidade a ruído e a flutuações amostrais.
 
-5. **Flexibilidade**: O método é model-agnostic (funciona com PLS, SVM, MLP e qualquer modelo com `predict()`) e suporta tanto regressão quanto classificação com métricas apropriadas.
+4. **Flexibilidade**: O método é model-agnostic (funciona com PLS, SVM, MLP e qualquer modelo com `predict()` ou `predict_prob()`) e suporta tanto regressão quanto classificação com métricas apropriadas. Entretanto, estudos abordando regressão ainda são necessários.
 
-O SMX conecta, portanto, a análise exploratória de dados espectrais, a modelagem preditiva, e a interpretabilidade de modelos em um pipeline unificado, gerando explicações que são tanto estatisticamente rigorosas quanto quimicamente significativas.
-
----
-
-*Documento gerado como referência teórica e didática do método SMX (Spectral Model eXplainability) com foco na abordagem de perturbação espectral. Baseado na análise do repositório SMX e seus experimentos com 8 datasets de XRF utilizando modelos PLS-DA, SVM e MLP.*
+O SMX conecta, portanto, a análise exploratória de dados espectrais, a modelagem preditiva, e a interpretabilidade de modelos em um pipeline unificado, gerando explicações que são tanto estatisticamente rigorosas quanto quimicamente significativas. 
+Apesar disso, ainda falta uma avaliação mais aprofundada da fidelidade das explicações contra metricas de XAI estabelecidas, bem como englobar espectros de outras técnicas (vis-NIR, Gama, RMN, etc.) para validar a generalização do método.
