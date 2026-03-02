@@ -42,6 +42,10 @@ Xcalclass_prep, mean_calclass, mean_calclass_poisson  = prepr.poisson(Xcalclass,
 Xpredclass_prep = ((Xpredclass/np.sqrt(mean_calclass)) - mean_calclass_poisson)
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+=======
+# PLS-DA with optimized latent variables
+>>>>>>> Stashed changes
 =======
 # PLS-DA with optimized latent variables
 >>>>>>> Stashed changes
@@ -53,7 +57,11 @@ import shap
 
 model_predict_proba = lambda x: svm_model[3].predict_proba(x)[:, 1] # o 1 é a probabilidade da classe positiva
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 explainer = shap.KernelExplainer(model_predict_proba, Xcalclass_prep, njobs=11)  # using a subset of calibration data as background for SHAP
+=======
+explainer = shap.KernelExplainer(model_predict_proba, Xcalclass_prep, njobs=-1)  # using a subset of calibration data as background for SHAP
+>>>>>>> Stashed changes
 =======
 explainer = shap.KernelExplainer(model_predict_proba, Xcalclass_prep, njobs=-1)  # using a subset of calibration data as background for SHAP
 >>>>>>> Stashed changes
