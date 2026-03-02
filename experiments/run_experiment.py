@@ -306,13 +306,25 @@ def _run_lrc_pipeline(config, metric_type, zone_scores_df, y_pred, predicates_qu
     lrc_by_seed = {}
     for seed in random_seeds:
         DG = graphs_by_seed[seed]
+        predicate_nodes = [n for n, attr in DG.nodes(data=True)
+                           if attr.get('node_type') == 'predicate']
+        if len(predicate_nodes) == 0:
+            print(f"  WARNING: seed {seed} produced an empty graph ({metric_type}), skipping.")
+            continue
         lrc_df_seed = exp.calculate_lrc_single_graph(DG, predicates_quantiles[0])
         lrc_df_seed['Seed'] = seed
         lrc_by_seed[seed] = lrc_df_seed
 
+    if not lrc_by_seed:
+        raise RuntimeError(
+            f"All seeds produced empty graphs for {metric_type}. "
+            "The model may be degenerate (e.g., all predictions on one side)."
+        )
+
     # Phase 4: aggregate across seeds
+    valid_seeds = list(lrc_by_seed.keys())
     lrc_summed_df, lrc_summed_unique_df = exp.aggregate_lrc_across_seeds(
-        lrc_by_seed, random_seeds
+        lrc_by_seed, valid_seeds
     )
     print(lrc_summed_unique_df)
 
