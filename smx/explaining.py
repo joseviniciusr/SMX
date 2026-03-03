@@ -1876,7 +1876,6 @@ def calculate_predicate_perturbation(
     # Return dictionary with results
     return metrics_results_dict
 
-
 def map_thresholds_to_natural(
     lrc_df,                    # DataFrame with Zone and Threshold as columns (preprocessed space)
     zone_sums_preprocessed,    # zone_sums_df (preprocessed)
@@ -2277,3 +2276,300 @@ def build_predicate_graph(bags_result, predicate_ranking_dict,
         print("Weighting by explained variance: ENABLED")
     
     return DG
+
+def calculate_predicate_perturbationv2(
+    estimator,
+    Xcalclass_prep: pd.DataFrame,
+    folds_struct: Dict,
+    predicates_df: pd.DataFrame,
+    spectral_cuts: List[Tuple[str, float, float]],
+    y_calclass: Union[pd.Series, np.ndarray] = None,
+    aim: str = 'regression',
+    perturbation_value: float = 0,
+    perturbation_mode: str = 'constant',
+    stats_source: str = 'full',
+    metric: str = 'mean_abs_diff',
+    normalize_by_zone_size: bool = False,
+    zone_size_exponent: float = 1.0,
+    verbose: bool = False,
+    save_detailed_results: bool = True
+) -> Dict:
+    """
+    Compute the importance of each predicate using Spectral Perturbation.
+
+    For each predicate subgroup (samples satisfying the predicate in a given fold/bag),
+    replaces spectral variables of the corresponding zone with a reference value
+    (constant, mean, median, min, or max) and measures how much the model predictions change.
+
+    Parameters
+    ----------
+    estimator : object
+        A fitted model with a `.predict()` method (e.g., PLSRegression, RandomForest).
+
+    Xcalclass_prep : pd.DataFrame
+        Preprocessed calibration data, shape (n_samples, n_features).
+        Feature names must be strings representing spectral energies/wavelengths.
+
+    folds_struct : dict
+        Bagging structure from `bagging_predicates()`.
+        Format: {fold_name: {predicate_rule: DataFrame}}, where each DataFrame
+        has columns ['Sample_Index', 'Zone_Value', 'Predicted_Y', ...].
+
+    predicates_df : pd.DataFrame
+        Predicate definitions from `predicates_by_quantiles()`.
+        Must contain columns ['Predicate', 'Zone', 'Threshold', 'Operator'].
+
+    spectral_cuts : list of tuples
+        Spectral zone definitions: [(zone_name, start_energy, end_energy), ...].
+
+    y_calclass : pd.Series or np.ndarray, optional
+        True class labels for calibration data. Required only when aim='classification'
+        and metric uses true labels.
+
+    aim : str, default='regression'
+        Task type:
+        - 'regression': uses continuous predictions
+        - 'classification': binarizes predictions at 0.5
+
+    perturbation_value : float, default=0
+        Value used when perturbation_mode='constant'.
+
+    perturbation_mode : str, default='constant'
+        How to replace spectral variables:
+        - 'constant': replace with `perturbation_value`
+        - 'mean': replace with column mean
+        - 'median': replace with column median
+        - 'min': replace with column minimum
+        - 'max': replace with column maximum
+
+    stats_source : str, default='full'
+        Source of statistics for non-constant perturbation:
+        - 'full': compute mean/median/min/max from entire Xcalclass_prep
+        - 'fold': compute only from samples in the current fold/bag
+
+    metric : str, default='mean_abs_diff'
+        How to measure prediction change:
+        - 'mean_abs_diff': mean of |y_original - y_perturbed| (default)
+        - 'mean_diff': |mean(y_original - y_perturbed)|
+
+    normalize_by_zone_size : bool, default=False
+        If True, divides the raw perturbation importance by the number of
+        spectral variables in the zone raised to ``zone_size_exponent``.
+        This compensates for the bias towards larger spectral zones.
+        Formula: importance_norm = importance_raw / (n_zone_features ** zone_size_exponent)
+
+    zone_size_exponent : float, default=1.0
+        Exponent applied to the zone size for normalization.
+        Only used when ``normalize_by_zone_size=True``.
+        - 1.0: full normalization (importance per variable)
+        - 0.5: square-root normalization (moderate correction)
+        - 0.0: no normalization (equivalent to normalize_by_zone_size=False)
+
+    verbose : bool, default=False
+        If True, prints progress information.
+
+    save_detailed_results : bool, default=True
+        If True, stores extended metadata per predicate (zone columns, etc.).
+
+    Returns
+    -------
+    dict
+        Dictionary with fold/bag names as keys and DataFrames as values.
+        Each DataFrame has columns ['Predicate', 'Perturbation'] sorted
+        by descending importance.
+    """
+
+    # ------------------------------------------------------------------ #
+    # 0. INPUT VALIDATION
+    # ------------------------------------------------------------------ #
+    if not hasattr(estimator, 'predict'):
+        raise ValueError("The estimator must have a predict() method.")
+
+    valid_aims = ['regression', 'classification']
+    if aim not in valid_aims:
+        raise ValueError(f"aim must be one of {valid_aims}. Received: '{aim}'")
+
+    valid_modes = ['constant', 'mean', 'median', 'min', 'max']
+    if perturbation_mode not in valid_modes:
+        raise ValueError(f"perturbation_mode must be one of {valid_modes}. Received: '{perturbation_mode}'")
+
+    valid_sources = ['full', 'fold']
+    if stats_source not in valid_sources:
+        raise ValueError(f"stats_source must be one of {valid_sources}. Received: '{stats_source}'")
+
+    valid_metrics = ['mean_abs_diff', 'mean_diff']
+    if metric not in valid_metrics:
+        raise ValueError(f"metric must be one of {valid_metrics}. Received: '{metric}'")
+
+    if zone_size_exponent < 0:
+        raise ValueError(f"zone_size_exponent must be >= 0. Received: {zone_size_exponent}")
+
+    # ------------------------------------------------------------------ #
+    # 1. INITIALISE CONTAINERS
+    # ------------------------------------------------------------------ #
+    metrics_results_dict = {}
+    metric_name = 'Perturbation'
+
+    # ------------------------------------------------------------------ #
+    # 2. ITERATE OVER FOLDS / BAGS
+    # ------------------------------------------------------------------ #
+    for fold_name, predicates_dict in folds_struct.items():
+
+        if verbose:
+            print(f"\n--- {fold_name} ({len(predicates_dict)} predicates) ---")
+
+        if len(predicates_dict) == 0:
+            metrics_results_dict[fold_name] = pd.DataFrame({
+                'Predicate': [], metric_name: []
+            })
+            continue
+
+        fold_metrics = {}
+        fold_detailed = {}
+
+        # -------------------------------------------------------------- #
+        # 3. ITERATE OVER PREDICATES INSIDE THE FOLD
+        # -------------------------------------------------------------- #
+        for pred_rule, df_info in predicates_dict.items():
+
+            sample_indices = df_info['Sample_Index'].values.tolist()
+            n_samples = len(sample_indices)
+
+            if n_samples == 0:
+                fold_metrics[pred_rule] = 0.0
+                continue
+
+            # ---------------------------------------------------------- #
+            # 4. IDENTIFY ZONE COLUMNS
+            # ---------------------------------------------------------- #
+            try:
+                zone_cols = get_zone_columns_from_predicate(
+                    pred_rule, predicates_df, spectral_cuts, Xcalclass_prep.columns
+                )
+            except (KeyError, ValueError) as e:
+                if verbose:
+                    print(f"  [SKIP] {pred_rule}: {e}")
+                fold_metrics[pred_rule] = 0.0
+                continue
+
+            if len(zone_cols) == 0:
+                if verbose:
+                    print(f"  [SKIP] {pred_rule}: no matching columns")
+                fold_metrics[pred_rule] = 0.0
+                continue
+
+            # Extract zone metadata for detailed results
+            pred_info = extract_predicate_info(pred_rule)
+            zone_name = pred_info.get('zone', 'unknown')
+            zone_start = None
+            zone_end = None
+            for zn, zs, ze in spectral_cuts:
+                if zn == zone_name:
+                    zone_start, zone_end = zs, ze
+                    break
+
+            # ---------------------------------------------------------- #
+            # 5. BUILD PERTURBED DATA
+            # ---------------------------------------------------------- #
+            X_eval = Xcalclass_prep.iloc[sample_indices].copy()
+            X_perturbed = X_eval.copy()
+
+            if perturbation_mode == 'constant':
+                X_perturbed[zone_cols] = perturbation_value
+            else:
+                # Compute column-wise statistics
+                if stats_source == 'full':
+                    stats_data = Xcalclass_prep[zone_cols]
+                else:  # 'fold'
+                    stats_data = X_eval[zone_cols]
+
+                if perturbation_mode == 'mean':
+                    col_stats = stats_data.mean(axis=0)
+                elif perturbation_mode == 'median':
+                    col_stats = stats_data.median(axis=0)
+                elif perturbation_mode == 'min':
+                    col_stats = stats_data.min(axis=0)
+                elif perturbation_mode == 'max':
+                    col_stats = stats_data.max(axis=0)
+
+                for col in zone_cols:
+                    X_perturbed[col] = col_stats[col]
+
+            # ---------------------------------------------------------- #
+            # 6. PREDICT ORIGINAL vs PERTURBED
+            # ---------------------------------------------------------- #
+            y_orig = np.array(estimator.predict(X_eval)).flatten()
+            y_pert = np.array(estimator.predict(X_perturbed)).flatten()
+
+            # Optional binarisation for classification
+            if aim == 'classification':
+                y_orig = (y_orig >= 0.5).astype(int)
+                y_pert = (y_pert >= 0.5).astype(int)
+
+            # ---------------------------------------------------------- #
+            # 7. COMPUTE RAW IMPORTANCE
+            # ---------------------------------------------------------- #
+            if metric == 'mean_abs_diff':
+                importance = np.mean(np.abs(y_orig - y_pert))
+            elif metric == 'mean_diff':
+                importance = np.abs(np.mean(y_orig - y_pert))
+
+            importance_for_ranking = float(importance)
+
+            # ---------------------------------------------------------- #
+            # 8. OPTIONAL ZONE-SIZE NORMALISATION
+            # ---------------------------------------------------------- #
+            n_zone_features = len(zone_cols)
+
+            if normalize_by_zone_size and n_zone_features > 0:
+                normalization_factor = n_zone_features ** zone_size_exponent
+                importance_for_ranking = importance_for_ranking / normalization_factor
+
+                if verbose:
+                    print(f"  {pred_rule}: raw={importance:.6f}, "
+                          f"normalized={importance_for_ranking:.6f} "
+                          f"(/ {n_zone_features}^{zone_size_exponent} = "
+                          f"/ {normalization_factor:.2f})")
+            else:
+                if verbose:
+                    print(f"  {pred_rule}: importance={importance_for_ranking:.6f} "
+                          f"(n_features={n_zone_features})")
+
+            # ---------------------------------------------------------- #
+            # 9. STORE RESULTS
+            # ---------------------------------------------------------- #
+            fold_metrics[pred_rule] = importance_for_ranking
+
+            if save_detailed_results:
+                fold_detailed[pred_rule] = {
+                    'importance_raw': float(importance),
+                    'importance_normalized': importance_for_ranking,
+                    'n_samples': n_samples,
+                    'zone_columns': zone_cols,
+                    'n_zone_features': n_zone_features,
+                    'zone_name': zone_name,
+                    'zone_start': zone_start,
+                    'zone_end': zone_end,
+                    'perturbation_mode': perturbation_mode,
+                    'stats_source': stats_source if perturbation_mode != 'constant' else None,
+                    'aim': aim,
+                    'metric': metric,
+                    'normalize_by_zone_size': normalize_by_zone_size,
+                    'zone_size_exponent': zone_size_exponent if normalize_by_zone_size else None
+                }
+
+        # -------------------------------------------------------------- #
+        # 10. CONVERT FOLD TO DATAFRAME
+        # -------------------------------------------------------------- #
+        metrics_df = pd.DataFrame.from_dict(
+            fold_metrics, orient='index', columns=[metric_name]
+        )
+        metrics_df.insert(0, 'Predicate', metrics_df.index)
+        metrics_df = metrics_df.reset_index(drop=True)
+        metrics_df = metrics_df.sort_values(
+            by=metric_name, ascending=False
+        ).reset_index(drop=True)
+
+        metrics_results_dict[fold_name] = metrics_df
+
+    return metrics_results_dict
