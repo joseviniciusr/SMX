@@ -287,7 +287,9 @@ def _run_lrc_pipeline(config, metric_type, zone_scores_df, y_pred, predicates_qu
                 stats_source='full',
                 aim=mc['perturbation_aim'],
                 metric=mc['perturbation_metric'],
-                verbose=True
+                verbose=True,
+                normalize_by_zone_size=True,
+                zone_size_exponent=1.0,  
             )
 
         all_results[seed] = {
