@@ -1,28 +1,28 @@
-VIP_Score;Reg_Coefficient;Shap;Permutation;LRC_perturbation;LRC_perturbationv2;LRC_covariance
-Fe ka;Zn ka;Fe ka;Fe ka;Rayleigh ka;Fe ka;Fe ka
-Zn ka;Mn;Zn ka;Compton ka;Compton ka;Rayleigh ka;Compton ka
-Fe kb;Rayleigh ka;Compton ka;Zn ka;Compton kb;Zn ka;background3
-Rayleigh ka;Ca ka;Rayleigh ka;Rayleigh ka;Fe ka;K;Compton kb
-Mn;Sr;K;K;Zn ka;Ca ka;Fe kb
-Ca ka;Rb;Ca ka;Sr;background2;Compton kb;Rayleigh ka
-Sr;Compton ka;Sr;Compton kb;Sr;Sr;Zr
-Rb;background2;Fe kb;Ca ka;Ca ka;Mn;Rb
-Compton ka;K;Mn;Fe kb;K;Compton ka;background2
-background2;Compton kb;Ca kb;Mn;Zr;Zr;Rayleigh kb
-Compton kb;Zn kb;Rb;Rb;Mn;background2;Sr
-K;Fe ka;background2;background2;Rayleigh kb;S;K
-Zn kb;Ca kb;Compton kb;background3;Zn kb;Rayleigh kb;Zn ka
-Cu;Rh L + Ar;background3;Zr;Cu;Cu;Al
-Ca kb;Cu;Rayleigh kb;Rh L + Ar;background3;Si;Rh L + Ar
-Rh L + Ar;Ni;background1;Ca kb;Rb;Ca kb;Ca ka
-Ni;background3;;Zn kb;Rh L + Ar;Zn kb;background1
-background3;S;Ti ka;Rayleigh kb;S;Al;Ti ka
-S;Ti ka;Rh L + Ar;Cu;Fe kb;Rb;P
-Ti ka;Fe kb;Cu;Ti ka;background1;Fe kb;Mn
-;Zr;Zr;S;Ca kb;P;Zn kb
-Zr;;Ni;P;P;Rh L + Ar;Si
-background1;background1;S;Ni;Si;background1;S
-Rayleigh kb;P;Al;background1;Al;background3;Ca kb
-P;Rayleigh kb;P;;Ti ka;Ti ka;Ni
-Al;Al;Si;Al;Ni;Ni;
-Si;Si;Zn kb;Si;;;
+VIP_Score;Reg_Coefficient;Shap;Permutation;LRC_perturbation;LRC_covariance
+Fe ka;Zn ka;Fe ka;Fe ka;Fe ka;Fe ka
+Zn ka;Mn;Zn ka;Compton ka;Rayleigh ka;Compton ka
+Fe kb;Rayleigh ka;Compton ka;Zn ka;Zn ka;background3
+Rayleigh ka;Ca ka;Rayleigh ka;Rayleigh ka;K;Compton kb
+Mn;Sr;K;K;Ca ka;Fe kb
+Ca ka;Rb;Ca ka;Sr;Compton kb;Rayleigh ka
+Sr;Compton ka;Sr;Compton kb;Sr;Zr
+Rb;background2;Fe kb;Ca ka;Mn;Rb
+Compton ka;K;Mn;Fe kb;Compton ka;background2
+background2;Compton kb;Ca kb;Mn;Zr;Rayleigh kb
+Compton kb;Zn kb;Rb;Rb;background2;Sr
+K;Fe ka;background2;background2;S;K
+Zn kb;Ca kb;Compton kb;background3;Rayleigh kb;Zn ka
+Cu;Rh L + Ar;background3;Zr;Cu;Al
+Ca kb;Cu;Rayleigh kb;Rh L + Ar;Si;Rh L + Ar
+Rh L + Ar;Ni;background1;Ca kb;Ca kb;Ca ka
+Ni;background3;;Zn kb;Zn kb;background1
+background3;S;Ti ka;Rayleigh kb;Al;Ti ka
+S;Ti ka;Rh L + Ar;Cu;Rb;P
+Ti ka;Fe kb;Cu;Ti ka;Fe kb;Mn
+;Zr;Zr;S;P;Zn kb
+Zr;;Ni;P;Rh L + Ar;Si
+background1;background1;S;Ni;background1;S
+Rayleigh kb;P;Al;background1;background3;Ca kb
+P;Rayleigh kb;P;;Ti ka;Ni
+Al;Al;Si;Al;Ni;
+Si;Si;Zn kb;Si;;

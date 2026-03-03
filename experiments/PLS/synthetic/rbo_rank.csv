@@ -8,9 +8,9 @@ Shap;Permutation;0.9184535806399999
 VIP_Score;LRC_covariance;0.91662699
 Reg_Coefficient;LRC_covariance;0.91662699
 Permutation;LRC_covariance;0.91662699
-VIP_Score;LRC_perturbation;0.8970274750999999
-Reg_Coefficient;LRC_perturbation;0.8970274750999999
-Permutation;LRC_perturbation;0.8970274750999999
+VIP_Score;LRC_perturbation;0.8938952665566666
+Reg_Coefficient;LRC_perturbation;0.8938952665566666
+Permutation;LRC_perturbation;0.8938952665566666
 LRC_perturbation;LRC_covariance;0.89335199
-Shap;LRC_perturbation;0.8927285806399999
+Shap;LRC_perturbation;0.8895963720966666
 Shap;LRC_covariance;0.86453870375
