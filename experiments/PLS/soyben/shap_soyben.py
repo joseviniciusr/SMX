@@ -13,20 +13,20 @@ smx_dir = workspace_root / 'smx'  # Path to smx folder
 if str(smx_dir) not in sys.path: # check to avoid duplicates
     sys.path.insert(0, str(smx_dir)) # insert at the start of sys.path to prioritize local modules
 
-# Loading a soil spectral dataset based on X-ray fluorescence (XRF)
-data_complete = pd.read_csv(f'{workspace_root}/real_datasets/xrf/tomato.csv', sep=';') # local copy of Toledo 2022 dataset (os ... indica para omitir o caminho longo)
-data = data_complete.loc[:, '2.12':'23.08']
+#Loading a soil spectral dataset based on X-ray fluorescence (XRF)
+data_complete = pd.read_csv(f'{workspace_root}/real_datasets/xrf/soyben.csv', sep=';') # local copy of Toledo 2022 dataset (os ... indica para omitir o caminho longo)
+data = data_complete.loc[:, '1.40':'23.10']  # selecting only the spectral features (columns with numeric names)
 
 # Split dataset by class and create calibration/prediction sets using Kennard-Stone (as in original pipeline)
 data_A = data_complete[data_complete['Class'] == 'A'].reset_index(drop=True)
 data_B = data_complete[data_complete['Class'] == 'B'].reset_index(drop=True)
 
 # splitting the data into calibration and prediction sets by kennard-stone algorithm
-XA_cal, XA_pred = ks.train_test_split(data_A.loc[:, '2.12':'23.08'], test_size=0.30)  # class A
+XA_cal, XA_pred = ks.train_test_split(data_A.loc[:, '1.40':'23.10'], test_size=0.30)  # class A
 XA_cal = XA_cal.reset_index(drop=True)
 XA_pred = XA_pred.reset_index(drop=True)
 
-XB_cal, XB_pred = ks.train_test_split(data_B.loc[:, '2.12':'23.08'], test_size=0.30)  # class B
+XB_cal, XB_pred = ks.train_test_split(data_B.loc[:, '1.40':'23.10'], test_size=0.30)  # class B
 XB_cal = XB_cal.reset_index(drop=True)
 XB_pred = XB_pred.reset_index(drop=True)
 
@@ -65,4 +65,4 @@ shap_global_importance = pd.DataFrame({
     'energy': Xpredclass_prep.columns,
     'Mean_Abs_SHAP': np.abs(shap_values_pls.values).mean(axis=0)}) # tomando a importancia global como a media dos valores absolutos dos valores SHAP para cada feature
 shap_global_importance.sort_values(by='Mean_Abs_SHAP', ascending=False, inplace=True)
-shap_global_importance.to_csv('shap_tomato.csv', index=False, sep=';')
+shap_global_importance.to_csv('shap_soyben.csv', index=False, sep=';')
