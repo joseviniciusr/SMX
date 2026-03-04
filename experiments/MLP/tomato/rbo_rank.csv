@@ -1,7 +1,7 @@
 Method_1;Method_2;RBO_Score
 Permutation;LRC_perturbation;0.78947229072
-Shap;Permutation;0.5682266717633333
-Shap;LRC_covariance;0.4413775717633333
-Shap;LRC_perturbation;0.4084833858466666
 Permutation;LRC_covariance;0.37175107696999987
 LRC_perturbation;LRC_covariance;0.20383348251
+Shap;LRC_perturbation;0.19208119592666664
+Shap;Permutation;0.1322841011333333
+Shap;LRC_covariance;0.041503197796666655

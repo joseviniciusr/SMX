@@ -13,8 +13,8 @@ Br ka;Br ka;Rh kb Compton;Rh kb Compton;S;Fe kb
 Rh ka Rayleigh;Rh ka Rayleigh;background3;Cu;Rh kb Compton;Cl
 Sr ka;Sr ka;Sr ka;Rh kb Rayleigh;Sr ka;Rh kb Rayleigh
 background1;background1;Rb kb;Sr ka;Cu;Sr ka
-background3;background3;S;Br ka;background3;Mn
-Rh kb Compton;Rh kb Compton;Rh kb Rayleigh;background3;Fe kb;Rb kb
+background3;background3;S;Br ka;background3;Rb kb
+Rh kb Compton;Rh kb Compton;Rh kb Rayleigh;background3;Fe kb;Mn
 Fe kb;Fe kb;background1;Zn;Zn;Zn
 Zn;Zn;Mn;Fe kb;Ca kb;Fe ka
 Rh ka Compton;Rh ka Compton;Fe kb;background1;Rh ka Compton;S

@@ -1,0 +1,56 @@
+{
+  "name": "soil_types",
+  "csv_file": "soil_types.csv",
+  "separator": ";",
+  "class_column": "Class",
+  "spectral_range": ["1.32", "13.1"],
+
+  "preprocessing": "poisson",
+  "preprocessing_mc": true,
+
+  "training_aim": "classification",
+  "random_seeds": [0, 1, 2, 3],
+  "test_size": 0.30,
+
+  "spectral_cuts": [
+    ["Al", 1.33, 1.63],
+    ["Si", 1.63, 1.86],
+    ["P", 1.86, 2.19],
+    ["S", 2.19, 2.55],
+    ["Rh L + Ar", 2.55, 3.21],
+    ["K", 3.21, 3.53],
+    ["Ca ka", 3.53, 3.84],
+    ["Ca kb", 3.84, 4.37],
+    ["Ti ka", 4.37, 4.75],
+    ["Ti kb", 4.75, 5.12],
+    ["Cr", 5.12, 5.77],
+    ["Mn", 5.77, 6.13],
+    ["Fe ka", 6.13, 6.80],
+    ["Fe kb", 6.80, 7.30],
+    ["Ni", 7.30, 7.91],
+    ["Cu", 7.91, 8.20],
+    ["Zn", 8.20, 9.0],
+    ["background1", 9.0, 10.69],
+    ["Fe ka + Ti ka", 10.69, 11.14],
+    ["background2", 11.14, 12.55],
+    ["sum Fe", 12.55, 13.1]
+  ],
+
+  "compatible_models": ["pls", "mlp", "svm"],
+  "model_params": {
+    "pls": {
+      "LVmax": 2,
+      "cv": 10
+    },
+    "mlp": {
+      "hidden_layer_sizes": [64, 32],
+      "activation": "tanh",
+      "learning_rate": "adaptive",
+      "max_iter": 10,
+      "random_state": 1
+    },
+    "svm": {
+      "kernel": "rbf"
+    }
+  }
+}

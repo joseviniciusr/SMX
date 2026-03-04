@@ -9,14 +9,14 @@ Ti ka;K;Ti kb;Al;Al;Fe kb
 Al;Al;Al;Ti kb;Fe kb;K
 K;Ca kb;K;K;Ca kb;Al
 sum Fe;sum Fe;P;Ca kb;P;Ti kb
-P;Ti kb;Fe ka + Ti ka;P;Ti kb;sum Fe
-Ti kb;background2;;sum Fe;S;P
-Cr;S;S;S;Cu;Cr
-S;Fe kb;Ca kb;Cu;sum Fe;S
-background2;Rh L + Ar;Rh L + Ar;Rh L + Ar;background3;background2
-Rh L + Ar;background3;background2;background2;Fe ka + Ti ka;background1
-background3;Cu;sum Fe;Cr;background2;background3
-Cu;background1;background3;background1;Rh L + Ar;Rh L + Ar
-background1;Cr;background1;background3;Cr;Cu
-Fe ka + Ti ka;Fe ka + Ti ka;Cu;Fe ka + Ti ka;background1;Fe ka + Ti ka
+P;Ti kb;background2;P;Ti kb;sum Fe
+Ti kb;background2;Cu;sum Fe;S;P
+Cr;S;background1;S;Cu;Cr
+S;Fe kb;background3;Cu;sum Fe;S
+background2;Rh L + Ar;sum Fe;Rh L + Ar;background3;background2
+Rh L + Ar;background3;Fe ka + Ti ka;background2;Fe ka + Ti ka;background1
+background3;Cu;Rh L + Ar;Cr;background2;background3
+Cu;background1;Ca kb;background1;Rh L + Ar;Rh L + Ar
+background1;Cr;S;background3;Cr;Cu
+Fe ka + Ti ka;Fe ka + Ti ka;;Fe ka + Ti ka;background1;Fe ka + Ti ka
 ;;Cr;;;

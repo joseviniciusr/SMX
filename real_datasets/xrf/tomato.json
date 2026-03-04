@@ -1,0 +1,52 @@
+{
+  "name": "tomato",
+  "csv_file": "tomato.csv",
+  "separator": ";",
+  "class_column": "Class",
+  "spectral_range": ["2.12", "23.08"],
+
+  "preprocessing": "poisson",
+  "preprocessing_mc": true,
+
+  "training_aim": "classification",
+  "random_seeds": [0, 1, 2, 3],
+  "test_size": 0.30,
+
+  "spectral_cuts": [
+    ["S", 2.12, 2.4],
+    ["Cl", 2.4, 3.04],
+    ["K ka", 3.0, 3.44],
+    ["K kb + Ca ka", 3.44, 3.84],
+    ["background1", 3.84, 5.7],
+    ["Mn", 5.7, 6.04],
+    ["Fe", 6.04, 7.3],
+    ["Cu", 7.3, 8.32],
+    ["Zn", 8.32, 8.84],
+    ["background2", 8.84, 11.56],
+    ["Br ka", 11.56, 12.5],
+    ["Rb ka + Br kb", 12.5, 13.8],
+    ["background3", 13.8, 17.0],
+    ["Rh ka Compton", 17.0, 19.9],
+    ["Rh ka Rayleigh", 19.9, 20.8],
+    ["Rh kb Compton", 20.8, 22.3],
+    ["Rh kb Rayleigh", 22.3, 23.08]
+  ],
+
+  "compatible_models": ["pls", "mlp", "svm"],
+  "model_params": {
+    "pls": {
+      "LVmax": 2,
+      "cv": 10
+    },
+    "mlp": {
+      "hidden_layer_sizes": [64, 32],
+      "activation": "tanh",
+      "learning_rate": "adaptive",
+      "max_iter": 10,
+      "random_state": 1
+    },
+    "svm": {
+      "kernel": "rbf"
+    }
+  }
+}

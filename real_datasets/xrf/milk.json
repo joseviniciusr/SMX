@@ -1,0 +1,45 @@
+{
+  "name": "milk",
+  "csv_file": "milk.csv",
+  "separator": ";",
+  "class_column": "Class",
+  "spectral_range": ["2.66", "22.62"],
+
+  "preprocessing": "poisson",
+  "preprocessing_mc": true,
+
+  "training_aim": "classification",
+  "random_seeds": [0, 1, 2, 3],
+  "test_size": 0.30,
+
+  "spectral_cuts": [
+    ["Ag La", 2.66, 3.10],
+    ["Ag Lb", 3.10, 3.46],
+    ["Ca", 3.46, 3.92],
+    ["background", 3.92, 6.12],
+    ["Fe", 6.12, 6.68],
+    ["Cu", 6.70, 8.37],
+    ["Zn", 8.37, 9.10],
+    ["Bremsstrahlung", 9.10, 20.06],
+    ["Ag compton", 20.06, 21.62],
+    ["Ag ka", 21.48, 22.62]
+  ],
+
+  "compatible_models": ["pls", "mlp", "svm"],
+  "model_params": {
+    "pls": {
+      "LVmax": 4,
+      "cv": 10
+    },
+    "mlp": {
+      "hidden_layer_sizes": [64, 32],
+      "activation": "tanh",
+      "learning_rate": "adaptive",
+      "max_iter": 10,
+      "random_state": 1
+    },
+    "svm": {
+      "kernel": "rbf"
+    }
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "name": "forage",
+  "csv_file": "forage.csv",
+  "separator": ";",
+  "class_column": "Class",
+  "spectral_range": ["1.4", "20.81"],
+
+  "preprocessing": "poisson",
+  "preprocessing_mc": true,
+
+  "training_aim": "classification",
+  "random_seeds": [0, 1, 2, 3],
+  "test_size": 0.30,
+
+  "spectral_cuts": [
+    ["Al", 1.40, 1.63],
+    ["Si", 1.63, 1.86],
+    ["P", 1.86, 2.16],
+    ["S", 2.16, 2.44],
+    ["Rh L + Ar", 2.44, 3.10],
+    ["K", 3.10, 3.46],
+    ["Ca ka", 3.46, 3.86],
+    ["Ca kb", 3.86, 4.37],
+    ["Ti ka", 4.37, 4.66],
+    ["Ti kb", 4.66, 5.08],
+    ["background1", 5.08, 5.72],
+    ["Mn", 5.72, 6.10],
+    ["Fe ka", 6.10, 6.76],
+    ["Fe kb", 6.76, 7.20],
+    ["Ni", 7.20, 7.69],
+    ["Cu", 7.69, 8.45],
+    ["Zn", 8.45, 8.81],
+    ["background2", 8.81, 13.10],
+    ["sum Fe", 13.10, 13.63],
+    ["background3", 13.63, 18.0],
+    ["Compton scattering", 18.0, 19.70],
+    ["Rayleight scattering", 19.70, 20.81]
+  ],
+
+  "compatible_models": ["pls", "mlp", "svm"],
+  "model_params": {
+    "pls": {
+      "LVmax": 3,
+      "cv": 10
+    },
+    "mlp": {
+      "hidden_layer_sizes": [64, 32],
+      "activation": "tanh",
+      "learning_rate": "adaptive",
+      "max_iter": 10,
+      "random_state": 1
+    },
+    "svm": {
+      "kernel": "rbf"
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "name": "bank_notes",
+  "csv_file": "bank_notes.csv",
+  "separator": ";",
+  "class_column": "Class",
+  "spectral_range": ["2.74", "22.71"],
+
+  "preprocessing": "poisson",
+  "preprocessing_mc": true,
+
+  "training_aim": "classification",
+  "random_seeds": [0, 1, 2, 3],
+  "test_size": 0.30,
+
+  "spectral_cuts": [
+    ["Ar ka + Ag L", 2.76, 3.47],
+    ["Ca ka", 3.5, 3.91],
+    ["Ca kb", 3.93, 4.24],
+    ["Ti ka", 4.26, 4.72],
+    ["Ti kb", 4.75, 5.13],
+    ["background1", 5.16, 6.12],
+    ["Fe ka", 6.15, 6.76],
+    ["Fe kb", 6.79, 7.32],
+    ["background2", 7.35, 7.78],
+    ["Cu ka", 7.81, 8.29],
+    ["Zn ka", 8.29, 8.80],
+    ["Cu kb", 8.80, 9.26],
+    ["Zn kb", 9.26, 10.00],
+    ["background3", 10.00, 21.46],
+    ["Ag ka scattering", 21.49, 22.71]
+  ],
+
+  "compatible_models": ["pls", "mlp", "svm"],
+  "model_params": {
+    "pls": {
+      "LVmax": 4,
+      "cv": 10
+    },
+    "mlp": {
+      "hidden_layer_sizes": [64, 32],
+      "activation": "tanh",
+      "learning_rate": "adaptive",
+      "max_iter": 10,
+      "random_state": 1
+    },
+    "svm": {
+      "kernel": "rbf"
+    }
+  }
+}

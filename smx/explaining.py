@@ -2320,3 +2320,196 @@ def build_predicate_graph(bags_result, predicate_ranking_dict,
         print("Weighting by explained variance: ENABLED")
     
     return DG
+
+
+def permutation_importance_per_zone(estimator, X, spectral_cuts, n_repeats=10, random_state=42, scoring_fn=None):
+    """
+    Compute permutation feature importance and aggregate by spectral zone.
+
+    Parameters
+    ----------
+    - **estimator** : fitted model with a `predict` method.
+    - **X** : pd.DataFrame
+        Preprocessed calibration data.
+    - **spectral_cuts** : list of tuples
+        Each tuple is (zone_name, start, end).
+    - **n_repeats** : int, default=10
+        Number of permutation repeats per feature.
+    - **random_state** : int, default=42
+        Random seed.
+    - **scoring_fn** : callable, optional
+        Custom prediction function taking X and returning predictions.
+        If None, uses estimator.predict(). For MLP/SVM classification,
+        pass e.g. ``lambda X: model.predict_proba(X)[:, 1]``.
+
+    Returns
+    -------
+    - **permutation_unique_df** : pd.DataFrame
+        Zone-deduplicated permutation importance ranking.
+    - **permutation_df** : pd.DataFrame
+        Full per-feature permutation importance with zone mapping.
+    """
+    rng = np.random.RandomState(random_state)
+    predict = scoring_fn if scoring_fn is not None else estimator.predict
+    baseline_pred = predict(X)
+    importance_list = []
+    X_arr = X.copy()
+
+    for col in X.columns:
+        diffs = []
+        for _ in range(n_repeats):
+            X_perm = X_arr.copy()
+            X_perm[col] = rng.permutation(X_perm[col].values)
+            perm_pred = predict(X_perm)
+            diffs.append(np.mean(np.abs(baseline_pred - perm_pred)))
+        importance_list.append(np.mean(diffs))
+
+    permutation_df = pd.DataFrame({
+        'energy': X.columns,
+        'Permutation_importance': importance_list
+    })
+    permutation_df.sort_values(by='Permutation_importance', ascending=False, inplace=True)
+
+    energy_to_zone = {}
+    for zone_name, start, end in spectral_cuts:
+        for e in permutation_df['energy']:
+            ef = float(e)
+            if start <= ef <= end:
+                energy_to_zone[e] = zone_name
+    permutation_df['Zone'] = permutation_df['energy'].map(energy_to_zone)
+
+    permutation_unique_df = permutation_df.drop_duplicates(
+        subset=['Zone'], keep='first'
+    ).reset_index(drop=True)
+    permutation_unique_df = permutation_unique_df.sort_values(
+        by='Permutation_importance', ascending=False
+    )
+    return permutation_unique_df, permutation_df
+
+
+def aggregate_lrc_across_seeds(lrc_by_seed, random_seeds):
+    """
+    Aggregate per-seed LRC DataFrames into a single mean-aggregated ranking.
+
+    Parameters
+    ----------
+    - **lrc_by_seed** : dict
+        {seed: lrc_df} where each lrc_df has columns
+        ['Node', 'Local_Reaching_Centrality', 'Zone', 'Threshold', 'Operator'].
+    - **random_seeds** : list
+        List of seeds to aggregate over.
+
+    Returns
+    -------
+    - **lrc_summed_df** : pd.DataFrame
+        Mean-aggregated LRC ranking (all predicates).
+    - **lrc_summed_unique_df** : pd.DataFrame
+        Zone-deduplicated version sorted by LRC descending.
+    """
+    lrc_combined_list = [lrc_by_seed[seed].copy() for seed in random_seeds]
+    lrc_all_seeds = pd.concat(lrc_combined_list, ignore_index=True)
+
+    lrc_summed_df = lrc_all_seeds.groupby('Node').agg({
+        'Local_Reaching_Centrality': 'mean',
+        'Zone': 'first',
+        'Threshold': 'first',
+        'Operator': 'first'
+    }).reset_index()
+
+    lrc_summed_df = lrc_summed_df.sort_values(
+        by='Local_Reaching_Centrality', ascending=False
+    ).reset_index(drop=True)
+
+    lrc_summed_unique_df = lrc_summed_df.drop_duplicates(
+        subset=['Zone'], keep='first'
+    ).reset_index(drop=True)
+    lrc_summed_unique_df = lrc_summed_unique_df.sort_values(
+        by='Local_Reaching_Centrality', ascending=False
+    ).reset_index(drop=True)
+
+    return lrc_summed_df, lrc_summed_unique_df
+
+
+def plot_threshold_spectrum(
+    lrc_natural_df,
+    row_index,
+    spectral_zones_original,
+    pca_info_dict_original,
+    y_labels,
+    output_path,
+    class_colors=None,
+):
+    """
+    Reconstruct a threshold to spectrum space and save an HTML plot overlaying
+    the threshold on the original spectral zone.
+
+    Parameters
+    ----------
+    - **lrc_natural_df** : pd.DataFrame
+        LRC DataFrame with natural-scale thresholds (must contain
+        'Zone', 'Threshold_Natural', 'Node_Natural' columns).
+    - **row_index** : int
+        Row index in *lrc_natural_df* to plot.
+    - **spectral_zones_original** : dict
+        Original (unpreprocessed) spectral zones dict.
+    - **pca_info_dict_original** : dict
+        PCA info dictionary from aggregate_spectral_zones_pca on natural data.
+    - **y_labels** : pd.Series
+        Class labels aligned with calibration data rows.
+    - **output_path** : str or Path
+        File path for the output HTML plot.
+    - **class_colors** : dict, optional
+        Mapping of class label to colour string.  Defaults to
+        ``{'A': 'gold', 'B': 'blue'}``.
+
+    Returns
+    -------
+    - **threshold_spectrum** : pd.Series
+        Reconstructed threshold spectrum.
+    """
+    import plotly.graph_objects as go
+
+    if class_colors is None:
+        class_colors = {'A': 'gold', 'B': 'blue'}
+
+    zone_name = lrc_natural_df.iloc[row_index]['Zone']
+    threshold_score = float(lrc_natural_df.iloc[row_index]['Threshold_Natural'])
+
+    threshold_spectrum = reconstruct_threshold_to_spectrum(
+        threshold_value=threshold_score,
+        zone_name=zone_name,
+        pca_info_dict=pca_info_dict_original,
+    )
+
+    zone_df = spectral_zones_original[zone_name]
+    x_values = pd.to_numeric(zone_df.columns, errors='coerce')
+
+    fig = go.Figure()
+    for idx, row in zone_df.iterrows():
+        class_label = y_labels.iloc[idx] if idx < len(y_labels) else 'Unknown'
+        fig.add_trace(go.Scatter(
+            x=x_values, y=row.values, mode='lines',
+            line=dict(color=class_colors.get(class_label, 'rgba(128,128,128,0.3)'), width=0.5),
+            name=f'Class {class_label}', showlegend=False, hoverinfo='skip',
+        ))
+
+    fig.add_trace(go.Scatter(
+        x=x_values, y=threshold_spectrum.values, mode='lines',
+        line=dict(color='red', width=4, dash='dash'),
+        name=f'Threshold Spectrum ({threshold_spectrum.name})',
+    ))
+
+    fig.update_layout(
+        title=(
+            f"Zona '{zone_name}' com Threshold Multivariado "
+            f"(Predicado: {lrc_natural_df.iloc[row_index]['Node_Natural']})"
+        ),
+        xaxis_title='Energia / Comprimento de Onda',
+        yaxis_title='Intensidade',
+        template='plotly_white',
+        showlegend=True,
+        legend=dict(yanchor='top', y=0.99, xanchor='left', x=0.01),
+    )
+    fig.write_html(str(output_path))
+
+    return threshold_spectrum
