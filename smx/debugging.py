@@ -78,11 +78,11 @@ def shap_per_zone(shap_csv_path, spectral_cuts):
         _map_energy_to_zone(shap_global_importance['energy'], spectral_cuts)
     )
 
-    shap_unique_df = shap_global_importance.drop_duplicates(
-        subset=['Zone'], keep='first'
-    ).reset_index(drop=True)
-    shap_unique_df = shap_unique_df.sort_values(
+    shap_unique_df = shap_global_importance.sort_values(
         by='Mean_Abs_SHAP', ascending=False
+    ).reset_index(drop=True)
+    shap_unique_df = shap_unique_df.drop_duplicates(
+        subset=['Zone'], keep='first'
     ).reset_index(drop=True)
     print(shap_unique_df)
     return shap_unique_df
