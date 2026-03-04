@@ -17,15 +17,6 @@ import pandas as pd
 import numpy as np
 import kennard_stone as ks
 
-GLOBAL_SEED = 42
-
-
-def set_global_seed(seed=GLOBAL_SEED):
-    """Set all random seeds for full reproducibility."""
-    os.environ['PYTHONHASHSEED'] = str(seed)
-    random.seed(seed)
-    np.random.seed(seed)
-
 # ── Path setup ───────────────────────────────────────────────────────────────
 SCRIPT_DIR = Path(__file__).resolve().parent
 WORKSPACE_ROOT = SCRIPT_DIR.parent
@@ -61,7 +52,7 @@ MODEL_CONFIG = {
         'train_fn': mlp_optimized,
         'train_kwargs': lambda cfg: {
             'aim': 'classification',
-            **{'random_state': GLOBAL_SEED, **cfg['model_params']['mlp']},
+            **{'random_state': cfg['seed'], **cfg['model_params']['mlp']},
         },
         'y_pred_extractor': lambda result: result[4]['MLP'],
         'model_extractor': lambda result: result[3],
@@ -75,7 +66,7 @@ MODEL_CONFIG = {
         'train_fn': svm_optimized,
         'train_kwargs': lambda cfg: {
             'aim': 'classification',
-            **{'random_state': GLOBAL_SEED, **cfg['model_params']['svm']},
+            **{'random_state': cfg['seed'], **cfg['model_params']['svm']},
         },
         'y_pred_extractor': lambda result: result[4]['SVC'],
         'model_extractor': lambda result: result[3],
@@ -470,11 +461,19 @@ def run_single_experiment(dataset, model_name, method, debugging):
     print(f"# Experiment: dataset={dataset}, model={model_name}, method={method}")
     print(f"{'#'*70}\n")
 
-    # 0. Set global seed for reproducibility
-    set_global_seed(GLOBAL_SEED)
-
-    # 1. Load config
+    # 0. Load config
     config = load_dataset_config(dataset)
+
+    # 1. Read seed from config (required)
+    if 'seed' not in config:
+        raise ValueError(
+            f"Dataset config for '{dataset}' is missing the required 'seed' field."
+        )
+    seed = config['seed']
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+
     spectral_cuts = [tuple(sc) for sc in config['spectral_cuts']]
 
     # 2. Validate model compatibility
