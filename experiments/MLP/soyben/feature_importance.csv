@@ -1,0 +1,28 @@
+Permutation;LRC_perturbation;LRC_covariance
+Fe ka;Fe ka;Fe ka
+Rayleigh ka;Rayleigh ka;Fe kb
+Compton ka;Ca ka;Compton ka
+Fe kb;Sr;background3
+K;Zn ka;Rb
+Ca ka;K;Compton kb
+Sr;Mn;Zr
+Compton kb;Rayleigh kb;K
+Mn;Fe kb;Sr
+Zn ka;Compton kb;Rayleigh kb
+Zr;background2;Zn ka
+Rayleigh kb;Si;background2
+background3;Zr;Ca kb
+background2;S;Rayleigh ka
+Cu;Compton ka;Mn
+Rb;background3;Ca ka
+Ca kb;Al;Ni
+Zn kb;Cu;Rh L + Ar
+;Rh L + Ar;Zn kb
+P;P;
+Rh L + Ar;Ca kb;
+Ti ka;Rb;
+background1;Zn kb;
+S;Ti ka;
+Si;background1;
+Al;Ni;
+Ni;;

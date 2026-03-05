@@ -1,0 +1,28 @@
+SVM_pvector;Permutation;LRC_perturbation;LRC_covariance
+Fe ka;Fe ka;Fe ka;Compton ka
+Zn ka;Compton ka;Rayleigh ka;background3
+Fe kb;Zn ka;Compton ka;Compton kb
+Mn;Fe kb;K;Fe ka
+Compton ka;Rayleigh ka;Zn ka;Rayleigh ka
+K;K;Fe kb;
+Ca ka;Ca ka;Ca ka;
+Rayleigh ka;Sr;Compton kb;
+Rb;Mn;Sr;
+background2;Compton kb;background3;
+Zn kb;background3;Rayleigh kb;
+Rh L + Ar;Rb;Mn;
+Sr;background2;Zr;
+Ca kb;Zr;Rb;
+S;Rh L + Ar;background2;
+Cu;Ca kb;Si;
+Compton kb;S;Al;
+background3;Rayleigh kb;Zn kb;
+Ti ka;Zn kb;S;
+Ni;Ti ka;P;
+;Cu;Cu;
+Zr;P;Ca kb;
+background1;background1;Rh L + Ar;
+P;Ni;Ti ka;
+Al;Al;background1;
+Rayleigh kb;;Ni;
+Si;Si;;
