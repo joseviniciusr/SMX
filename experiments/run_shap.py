@@ -99,7 +99,7 @@ def run_shap(dataset, model_name, new_only=False):
     chunks = np.array_split(Xcalclass_prep, n_jobs)
 
     from joblib import Parallel, delayed
-    results = Parallel(n_jobs=n_jobs)(
+    results = Parallel(n_jobs=n_jobs, prefer="threads")(
         delayed(explainer.shap_values)(chunk) for chunk in chunks
     )
     shap_values = np.concatenate(results, axis=0)
