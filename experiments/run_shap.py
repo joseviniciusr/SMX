@@ -42,7 +42,7 @@ SHAP_PREDICT_FN = {
 
 # ── Core routine ─────────────────────────────────────────────────────────────
 
-def run_shap(dataset, model_name):
+def run_shap(dataset, model_name, new_only=False):
     """Compute and save SHAP values for a (dataset, model) combination."""
     print(f"\n{'#'*70}")
     print(f"# SHAP: dataset={dataset}, model={model_name}")
@@ -50,6 +50,13 @@ def run_shap(dataset, model_name):
 
     # 0. Load config
     config = load_dataset_config(dataset)
+
+    # 0a. Skip if output already exists and --new-only was requested
+    if new_only:
+        output_path = SCRIPT_DIR / model_name.upper() / dataset / f'shap_{config["name"]}.csv'
+        if output_path.exists():
+            print(f"Skipping (already exists): {output_path}")
+            return
 
     # 1. Set seed for full reproducibility (same as run_experiment)
     if 'seed' not in config:
@@ -107,9 +114,9 @@ def run_shap(dataset, model_name):
 
 def _run_single_wrapper(args_tuple):
     """Wrapper for subprocess-based parallel execution."""
-    dataset, model_name = args_tuple
+    dataset, model_name, new_only = args_tuple
     try:
-        run_shap(dataset, model_name)
+        run_shap(dataset, model_name, new_only=new_only)
         return (dataset, model_name, None)
     except Exception as e:
         import traceback
@@ -126,6 +133,8 @@ def main():
                         help='Model type or "all"')
     parser.add_argument('--parallel', type=int, default=1, metavar='N',
                         help='Number of parallel SHAP jobs to run (default: 1, sequential)')
+    parser.add_argument('--new-only', action='store_true',
+                        help='Skip dataset/model combinations whose shap_*.csv already exists')
     args = parser.parse_args()
 
     datasets = list_available_datasets() if args.dataset == 'all' else [args.dataset]
@@ -137,7 +146,7 @@ def main():
         # Sequential execution
         for ds, mdl in jobs:
             try:
-                run_shap(ds, mdl)
+                run_shap(ds, mdl, new_only=args.new_only)
             except Exception as e:
                 print(f"\nERROR running SHAP for {ds}/{mdl}: {e}")
                 import traceback
@@ -168,7 +177,8 @@ def main():
                 ds, mdl = pending.pop(0)
                 print(f"[parallel] Launching {ds}/{mdl}...")
                 proc = subprocess.Popen(
-                    [sys.executable, script, '--dataset', ds, '--model', mdl],
+                    [sys.executable, script, '--dataset', ds, '--model', mdl]
+                    + (['--new-only'] if args.new_only else []),
                     stdout=sys.stdout,
                     stderr=subprocess.PIPE,
                     text=True,
