@@ -94,7 +94,7 @@ def run_shap(dataset, model_name, new_only=False):
     print("Computing SHAP values (KernelExplainer)...")
     predict_fn = SHAP_PREDICT_FN[model_name](model)
     explainer = shap.KernelExplainer(predict_fn, Xcalclass_prep)
-    shap_exp = explainer(Xcalclass_prep)
+    shap_exp = explainer(Xcalclass_prep,n_jobs=20)
 
     shap_global_importance = pd.DataFrame({
         'energy': Xcalclass_prep.columns,
