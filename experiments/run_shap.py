@@ -93,12 +93,13 @@ def run_shap(dataset, model_name, new_only=False):
     # 7. Compute SHAP values
     print("Computing SHAP values (KernelExplainer)...")
     predict_fn = SHAP_PREDICT_FN[model_name](model)
-    explainer = shap.KernelExplainer(predict_fn, Xcalclass_prep)
-    shap_values = explainer.shap_values(Xcalclass_prep)
+    n_cpus = os.cpu_count() or 1
+    explainer = shap.KernelExplainer(predict_fn, Xcalclass_prep, njobs=n_cpus)
+    shap_explanation = explainer(Xcalclass_prep)
 
     shap_global_importance = pd.DataFrame({
         'energy': Xcalclass_prep.columns,
-        'Mean_Abs_SHAP': np.abs(shap_values).mean(axis=0)
+        'Mean_Abs_SHAP': np.abs(shap_explanation.values).mean(axis=0)
     })
     shap_global_importance.sort_values(by='Mean_Abs_SHAP', ascending=False, inplace=True)
 
