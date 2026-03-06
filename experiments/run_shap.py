@@ -93,8 +93,7 @@ def run_shap(dataset, model_name, new_only=False):
     # 7. Compute SHAP values
     print("Computing SHAP values (KernelExplainer)...")
     predict_fn = SHAP_PREDICT_FN[model_name](model)
-    n_cpus = os.cpu_count() or 1
-    explainer = shap.KernelExplainer(predict_fn, Xcalclass_prep, njobs=n_cpus)
+    explainer = shap.KernelExplainer(predict_fn, Xcalclass_prep, njobs=20)
     shap_explanation = explainer(Xcalclass_prep)
 
     shap_global_importance = pd.DataFrame({
