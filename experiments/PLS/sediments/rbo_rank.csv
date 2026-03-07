@@ -3,9 +3,14 @@ Reg_Coefficient;LRC_perturbation;0.9491721665566666
 Permutation;LRC_covariance;0.8860136717633333
 Permutation;LRC_perturbation;0.8134096583466667
 Reg_Coefficient;Permutation;0.7939615583466666
+VIP_Score;Shap;0.7443779959266665
 VIP_Score;Reg_Coefficient;0.7432991720966667
 VIP_Score;LRC_perturbation;0.7432991720966667
 LRC_perturbation;LRC_covariance;0.7351458803066666
 Reg_Coefficient;LRC_covariance;0.7269715717633334
 VIP_Score;Permutation;0.6942991720966667
 VIP_Score;LRC_covariance;0.6892892855133333
+Reg_Coefficient;Shap;0.6653079955933333
+Shap;LRC_perturbation;0.6496913873833333
+Shap;Permutation;0.6019019955933332
+Shap;LRC_covariance;0.5387112873833333

@@ -1,21 +1,21 @@
-VIP_Score;Reg_Coefficient;Permutation;LRC_perturbation;LRC_covariance
-Fe ka;Fe ka;Fe ka;Fe ka;Fe ka
-K;Ti ka;Fe kb;Ti ka;Fe kb
-Ca ka;K;Ti ka;K;Ti ka
-Ti ka;Fe kb;K;Fe kb;Ca ka
-Fe kb;Si;Ti kb;Ti kb;background 3
-Mn;Ti kb;Si;Si;Ti kb
-Ca kb;Mn;Ca ka;Ca ka;K
-Si;Ca ka;Mn;Mn;Si
-Ti kb;Backgroun 2;sum Fe;Backgroun 1;Backgroun 1
-Zn;Rh L + Ar;P;Backgroun 2;Mn
-Rh L + Ar;Backgroun 1;Ca kb;Al;sum Fe
-S;Zn;Zn;Zn;Zn
-Al;Al;Backgroun 1;Rh L + Ar;Backgroun 2
-P;Cu;Backgroun 2;background 3;Ca kb
-Backgroun 2;P;Al;sum Fe;
-Backgroun 1;background 3;background 3;Cu;
-background 3;Ca kb;Rh L + Ar;P;
-sum Fe;sum Fe;Cu;Ca kb;
-Cu;S;S;S;
-;;;;
+VIP_Score;Reg_Coefficient;Shap;Permutation;LRC_perturbation;LRC_covariance
+Fe ka;Fe ka;Fe ka;Fe ka;Fe ka;Fe ka
+K;Ti ka;K;Fe kb;Ti ka;Fe kb
+Ca ka;K;Al;Ti ka;K;Ti ka
+Ti ka;Fe kb;Si;K;Fe kb;Ca ka
+Fe kb;Si;P;Ti kb;Ti kb;background 3
+Mn;Ti kb;Rh L + Ar;Si;Si;Ti kb
+Ca kb;Mn;S;Ca ka;Ca ka;K
+Si;Ca ka;Ca ka;Mn;Mn;Si
+Ti kb;Backgroun 2;Ca kb;sum Fe;Backgroun 1;Backgroun 1
+Zn;Rh L + Ar;Ti ka;P;Backgroun 2;Mn
+Rh L + Ar;Backgroun 1;Backgroun 1;Ca kb;Al;sum Fe
+S;Zn;Ti kb;Zn;Zn;Zn
+Al;Al;Fe kb;Backgroun 1;Rh L + Ar;Backgroun 2
+P;Cu;Mn;Backgroun 2;background 3;Ca kb
+Backgroun 2;P;background 3;Al;sum Fe;
+Backgroun 1;background 3;Backgroun 2;background 3;Cu;
+background 3;Ca kb;Cu;Rh L + Ar;P;
+sum Fe;sum Fe;Zn;Cu;Ca kb;
+Cu;S;sum Fe;S;S;
+;;;;;
