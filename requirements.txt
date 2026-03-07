@@ -9,3 +9,4 @@ kennard-stone
 ipykernel
 networkx
 nbformat>=4.2.0
+ipywidgets
