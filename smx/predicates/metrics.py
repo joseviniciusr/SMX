@@ -221,11 +221,6 @@ class PerturbationMetric(BasePredicateMetric):
         Predicate catalogue with columns ``'rule'`` and ``'zone'``.
     spectral_cuts : list of (name, start, end) tuples
         Defines every spectral zone boundary.
-    y_calclass : pd.Series or np.ndarray, optional
-        True class labels.  Required for classification metrics
-        ``'accuracy_drop'`` and ``'f1_drop'``.
-    aim : {'regression', 'classification'}, default 'regression'
-        Task type.
     perturbation_value : float, default 0
         Constant replacement value when ``perturbation_mode='constant'``.
     perturbation_mode : {'constant', 'mean', 'median', 'min', 'max'}, default 'constant'
@@ -261,8 +256,6 @@ class PerturbationMetric(BasePredicateMetric):
         Xcalclass_prep: pd.DataFrame,
         predicates_df: pd.DataFrame,
         spectral_cuts: List[Tuple[str, float, float]],
-        y_calclass: Optional[Union[pd.Series, np.ndarray]] = None,
-        aim: Literal["regression", "classification"] = "regression",
         perturbation_value: float = 0,
         perturbation_mode: Literal["constant", "mean", "median", "min", "max"] = "constant",
         stats_source: Literal["full", "predicate"] = "full",
@@ -272,19 +265,10 @@ class PerturbationMetric(BasePredicateMetric):
         verbose: bool = False,
         save_detailed_results: bool = True,
     ) -> None:
-        # ── Validate aim + metric combo ───────────────────────────────────
-        if aim not in {"regression", "classification"}:
-            raise ValueError(f"aim must be 'regression' or 'classification'. Got '{aim}'.")
-        if aim == "regression" and metric not in self._REGRESSION_METRICS:
-            raise ValueError(
-                f"For aim='regression', metric must be one of "
-                f"{self._REGRESSION_METRICS}. Got '{metric}'."
-            )
-        if aim == "classification" and metric not in self._CLASSIFICATION_METRICS:
-            raise ValueError(
-                f"For aim='classification', metric must be one of "
-                f"{self._CLASSIFICATION_METRICS}. Got '{metric}'."
-            )
+        aim = "classification" if metric in self._CLASSIFICATION_METRICS else "regression" if metric in self._REGRESSION_METRICS else None
+
+        if aim is None:
+            raise ValueError(f"Invalid metric '{metric}'. Must be one of {self._REGRESSION_METRICS} or {self._CLASSIFICATION_METRICS}.")
         if metric == "probability_shift" and not hasattr(estimator, "predict_proba"):
             raise ValueError(
                 "'probability_shift' requires an estimator with predict_proba(). "
@@ -294,8 +278,6 @@ class PerturbationMetric(BasePredicateMetric):
             raise ValueError(
                 "'decision_function_shift' requires an estimator with decision_function()."
             )
-        if metric in {"accuracy_drop", "f1_drop"} and y_calclass is None:
-            raise ValueError(f"'{metric}' requires y_calclass (true labels).")
 
         self.estimator = estimator
         self.Xcalclass_prep = Xcalclass_prep
@@ -310,10 +292,6 @@ class PerturbationMetric(BasePredicateMetric):
         self.zone_size_exponent = zone_size_exponent
         self.verbose = verbose
         self.save_detailed_results = save_detailed_results
-
-        if y_calclass is not None and isinstance(y_calclass, np.ndarray):
-            y_calclass = pd.Series(y_calclass)
-        self.y_calclass = y_calclass
 
     @property
     def metric_column(self) -> str:
@@ -376,9 +354,6 @@ class PerturbationMetric(BasePredicateMetric):
                     continue
 
                 X_eval = self.Xcalclass_prep.iloc[sample_indices].copy()
-                y_true_eval = (
-                    self.y_calclass.iloc[sample_indices] if self.y_calclass is not None else None
-                )
 
                 # ── Perturb zone ──────────────────────────────────────────
                 X_perturbed = X_eval.copy()
@@ -395,9 +370,38 @@ class PerturbationMetric(BasePredicateMetric):
                         X_perturbed[col] = col_stats[col]
 
                 # ── Compute importance ────────────────────────────────────
-                importance, importance_for_ranking = self._compute_importance(
-                    X_eval, X_perturbed, y_true_eval, accuracy_score, f1_score
-                )
+                try:
+                    importance, importance_for_ranking = self._compute_importance(
+                        X_eval, X_perturbed, accuracy_score, f1_score
+                    )
+                except (TypeError, ValueError) as exc:
+                    try:
+                        y_sample = np.array(self.estimator.predict(X_eval.iloc[:1])).flatten()
+                        pred_dtype = y_sample.dtype
+                        is_numeric = np.issubdtype(pred_dtype, np.number)
+                    except Exception:
+                        pred_dtype = "unknown"
+                        is_numeric = None
+
+                    if self.aim == "regression" and is_numeric is False:
+                        hint = (
+                            f"Metric '{self.metric}' requires numeric predictions, but the "
+                            f"estimator returned dtype '{pred_dtype}' (e.g. class labels). "
+                            f"Switch to a classification metric such as 'prediction_change_rate'."
+                        )
+                    elif self.aim == "classification" and is_numeric is True:
+                        hint = (
+                            f"Metric '{self.metric}' is a classification metric, but the "
+                            f"estimator appears to return numeric values (dtype '{pred_dtype}'). "
+                            f"Switch to a regression metric such as 'mean_abs_diff'."
+                        )
+                    else:
+                        hint = (
+                            f"Metric '{self.metric}' is incompatible with this estimator "
+                            f"(prediction dtype: '{pred_dtype}'). "
+                            f"Original error: {exc}"
+                        )
+                    raise TypeError(hint) from exc
 
                 # ── Zone-size normalisation ───────────────────────────────
                 n_zone_features = len(zone_cols)
@@ -444,7 +448,6 @@ class PerturbationMetric(BasePredicateMetric):
         self,
         X_eval: pd.DataFrame,
         X_perturbed: pd.DataFrame,
-        y_true_eval,
         accuracy_score,
         f1_score,
     ) -> Tuple[float, float]:
@@ -475,17 +478,14 @@ class PerturbationMetric(BasePredicateMetric):
         elif self.metric == "accuracy_drop":
             y_orig = np.array(self.estimator.predict(X_eval)).flatten()
             y_pert = np.array(self.estimator.predict(X_perturbed)).flatten()
-            imp = float(accuracy_score(y_true_eval, y_orig) - accuracy_score(y_true_eval, y_pert))
-            return imp, float(np.abs(imp))
+            imp = float(1.0 - accuracy_score(y_orig, y_pert))
+            return imp, imp
 
         elif self.metric == "f1_drop":
             y_orig = np.array(self.estimator.predict(X_eval)).flatten()
             y_pert = np.array(self.estimator.predict(X_perturbed)).flatten()
-            imp = float(
-                f1_score(y_true_eval, y_orig, average="weighted")
-                - f1_score(y_true_eval, y_pert, average="weighted")
-            )
-            return imp, float(np.abs(imp))
+            imp = float(1.0 - f1_score(y_orig, y_pert, average="weighted"))
+            return imp, imp
 
         elif self.metric == "probability_shift":
             prob_orig = self.estimator.predict_proba(X_eval)
