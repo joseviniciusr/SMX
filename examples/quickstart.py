@@ -8,7 +8,7 @@ This script walks through the complete SMX pipeline:
   2. Split calibration / test sets
   3. Mean-centre the spectra
   4. Train an SVM classifier
-  5. Run the SMX explanation pipeline via SMXExplainer (single object, single call)
+  5. Run the SMX explanation pipeline via SMX (single object, single call)
   6. Print the ranked spectral zones and export HTML plots
 
 Dependencies: numpy, pandas, scikit-learn, smx
@@ -19,7 +19,7 @@ import pandas as pd
 from sklearn.svm import SVC
 from sklearn.model_selection import train_test_split
 
-import smx
+from smx import SMX, generate_synthetic_spectral_data
 
 # ── Reproducibility ───────────────────────────────────────────────────────────
 
@@ -56,7 +56,7 @@ CLASSES_CONFIG = [
     },
 ]
 
-df = smx.generate_synthetic_spectral_data(
+df = generate_synthetic_spectral_data(
     classes_config=CLASSES_CONFIG,
     n_points=500,
     x_min=1,
@@ -125,7 +125,7 @@ spectral_cuts = [
     ("background6", 890.0, 1000.0),
 ]
 
-explainer = smx.Explainer(
+smx = SMX(
     spectral_cuts=spectral_cuts,
     quantiles=[0.25, 0.50, 0.75],
     seeds=[0, 1, 2, 3],
@@ -138,7 +138,7 @@ explainer = smx.Explainer(
     perturbation_metric="probability_shift"
 )
 
-explainer.fit(X_cal_prep, y_pred_cal, X_cal_natural=X_cal)
+smx.fit(X_cal_prep, y_pred_cal, X_cal_natural=X_cal)
 
 # =============================================================================
 # 6. Results
@@ -148,7 +148,7 @@ print("Top predicates by Local Reaching Centrality")
 print("=" * 60)
 
 top = (
-    explainer.lrc_natural_[explainer.lrc_natural_["Zone"].notna()]
+    smx.lrc_natural_[smx.lrc_natural_["Zone"].notna()]
     .drop_duplicates(subset="Zone")
     .sort_values("Local_Reaching_Centrality", ascending=False)
     [["Zone", "Operator", "Threshold_Natural", "Local_Reaching_Centrality"]]
@@ -167,7 +167,7 @@ output_dir.mkdir(exist_ok=True)
 
 # Use the top-ranked predicate for each zone
 top_per_zone = (
-    explainer.lrc_natural_[explainer.lrc_natural_["Zone"].notna()]
+    smx.lrc_natural_[smx.lrc_natural_["Zone"].notna()]
     .sort_values("Local_Reaching_Centrality", ascending=False)
     .drop_duplicates(subset="Zone")
 )
@@ -175,15 +175,15 @@ top_per_zone = (
 print("\nExporting HTML plots…")
 for _, row in top_per_zone.iterrows():
     zone_name = row["Zone"]
-    row_index = explainer.lrc_natural_.index[
-        explainer.lrc_natural_["Node"] == row["Node"]
+    row_index = smx.lrc_natural_.index[
+        smx.lrc_natural_["Node"] == row["Node"]
     ].tolist()[0]
     html_path = output_dir / f"threshold_{zone_name.replace(' ', '_')}.html"
     plot_threshold_spectrum(
-        lrc_natural_df=explainer.lrc_natural_,
+        lrc_natural_df=smx.lrc_natural_,
         row_index=row_index,
-        spectral_zones_original=explainer.zones_natural_,
-        pca_info_dict_original=explainer.pca_info_natural_,
+        spectral_zones_original=smx.zones_natural_,
+        pca_info_dict_original=smx.pca_info_natural_,
         y_labels=y_cal,
         output_path=html_path,
     )

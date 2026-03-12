@@ -1,5 +1,5 @@
 """
-SMXExplainer: high-level facade for the full SMX explanation pipeline.
+SMX: high-level facade for the full SMX explanation pipeline.
 
 This class internalises the seed-loop orchestration that every caller would
 otherwise have to rewrite manually (zone extraction → predicate generation →
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 SpectralCuts = List[tuple]   # list of (name, start, end)
 
 
-class Explainer:
+class SMX:
     """Full SMX explanation pipeline as a single fit/transform object.
 
     Runs zone extraction → PCA aggregation → predicate generation →
@@ -170,7 +170,7 @@ class Explainer:
         X_cal_prep: pd.DataFrame,
         y_pred_cal: Union[pd.Series, np.ndarray],
         X_cal_natural: Optional[pd.DataFrame] = None,
-    ) -> "Explainer":
+    ) -> "SMX":
         """Run the full SMX explanation pipeline.
 
         Parameters
