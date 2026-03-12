@@ -24,45 +24,48 @@ import smx
 # ── Reproducibility ───────────────────────────────────────────────────────────
 
 SEED = 42
-np.random.seed(SEED)
 
 # =============================================================================
-# 1. Synthetic spectral dataset
+# 1. Synthetic spectral dataset (config inlined from synthetic.json)
 # =============================================================================
-# Wavelength axis from 1.0 to 10.0 keV in 0.1 steps (91 channels)
-wavelengths = np.round(np.arange(1.0, 10.1, 0.1), 1)
-N_PER_CLASS = 60
+# Two-class XRF-like dataset:
+#   Class A — peaks at 250, 380, 550, 700, 850 (channel units)
+#   Class B — peaks at  50, 250, 380, 550, 850 (overlaps A except for F1/F5)
+# Spectral axis: 500 points from 1 to 1000 (channel numbers)
 
+CLASSES_CONFIG = [
+    {
+        "name": "A",
+        "n_samples": 156,
+        "peaks": [250, 380, 550, 700, 850],
+        "amplitude_mean": 1.0,
+        "amplitude_std": 0.3,
+        "width_mean": 15.0,
+        "width_std": 2.0,
+        "noise_std": 0.04,
+    },
+    {
+        "name": "B",
+        "n_samples": 146,
+        "peaks": [50, 250, 380, 550, 850],
+        "amplitude_mean": 1.4,
+        "amplitude_std": 0.5,
+        "width_mean": 15.0,
+        "width_std": 1.8,
+        "noise_std": 0.035,
+    },
+]
 
-def _gaussian(x, center, amplitude, width):
-    return amplitude * np.exp(-((x - center) ** 2) / (2 * width ** 2))
-
-
-def _make_spectra(n, peak_centers, rng):
-    spectra = []
-    for _ in range(n):
-        spectrum = rng.normal(0, 0.03, len(wavelengths))  # baseline noise
-        for center, amp, width in peak_centers:
-            amp_jitter = rng.normal(amp, amp * 0.10)
-            width_jitter = abs(rng.normal(width, width * 0.10))
-            spectrum += _gaussian(wavelengths, center, amp_jitter, width_jitter)
-        spectra.append(spectrum)
-    return np.array(spectra)
-
-
-rng = np.random.default_rng(SEED)
-
-# Class A: strong peak at 2.5, moderate peak at 5.5
-spectra_A = _make_spectra(N_PER_CLASS, [(2.5, 1.0, 0.3), (5.5, 0.5, 0.4)], rng)
-
-# Class B: strong peak at 3.5, strong peak at 7.5
-spectra_B = _make_spectra(N_PER_CLASS, [(3.5, 1.0, 0.3), (7.5, 0.8, 0.4)], rng)
-
-X = pd.DataFrame(
-    np.vstack([spectra_A, spectra_B]),
-    columns=wavelengths,
+df = smx.generate_synthetic_spectral_data(
+    classes_config=CLASSES_CONFIG,
+    n_points=500,
+    x_min=1,
+    x_max=1000,
+    seed=0,
 )
-y = pd.Series(["A"] * N_PER_CLASS + ["B"] * N_PER_CLASS)
+
+X = df.drop(columns=["Class"])
+y = df["Class"]
 
 # =============================================================================
 # 2. Calibration / test split (stratified)
@@ -99,10 +102,27 @@ y_pred_cal = pd.Series(svm.predict_proba(X_cal_prep)[:, class_a_idx])
 # =============================================================================
 # 5. SMX pipeline (single object, single fit call)
 # =============================================================================
+# Spectral cuts mirror the zones defined in synthetic.json:
+#   F1 = exclusive Class B peak region   (  1 – 100)
+#   F2 = shared peak region              (200 – 300)
+#   F3 = shared peak region              (330 – 430)
+#   F4 = shared peak region              (500 – 600)
+#   F5 = exclusive Class A peak region   (660 – 750)
+#   F6 = shared peak region              (815 – 890)
+# Background zones are included to cover the full axis.
 spectral_cuts = [
-    ("Low",  1.0, 4.0),   # covers Class A peak at 2.5 and Class B peak at 3.5
-    ("Mid",  4.0, 6.5),   # covers Class A peak at 5.5
-    ("High", 6.5, 10.0),  # covers Class B peak at 7.5
+    ("F1",          1.0,   100.0),
+    ("background1", 100.0, 200.0),
+    ("F2",          200.0, 300.0),
+    ("background2", 300.0, 330.0),
+    ("F3",          330.0, 430.0),
+    ("background3", 430.0, 500.0),
+    ("F4",          500.0, 600.0),
+    ("background4", 600.0, 660.0),
+    ("F5",          660.0, 750.0),
+    ("background5", 750.0, 815.0),
+    ("F6",          815.0, 890.0),
+    ("background6", 890.0, 1000.0),
 ]
 
 explainer = smx.Explainer(
@@ -168,4 +188,5 @@ for _, row in top_per_zone.iterrows():
         output_path=html_path,
     )
     print(f"  Saved: {html_path}")
+
 
