@@ -115,9 +115,7 @@ explainer = smx.SMXExplainer(
     metric="perturbation",
     estimator=svm,
     perturbation_mode="median",
-    perturbation_metric="probability_shift",
-    normalize_by_zone_size=True,
-    zone_size_exponent=1.0,
+    perturbation_metric="probability_shift"
 )
 
 explainer.fit(X_cal_prep, y_pred_cal, X_cal_natural=X_cal)
