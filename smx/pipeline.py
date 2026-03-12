@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 SpectralCuts = List[tuple]   # list of (name, start, end)
 
 
-class SMXExplainer:
+class Explainer:
     """Full SMX explanation pipeline as a single fit/transform object.
 
     Runs zone extraction → PCA aggregation → predicate generation →
@@ -170,7 +170,7 @@ class SMXExplainer:
         X_cal_prep: pd.DataFrame,
         y_pred_cal: Union[pd.Series, np.ndarray],
         X_cal_natural: Optional[pd.DataFrame] = None,
-    ) -> "SMXExplainer":
+    ) -> "Explainer":
         """Run the full SMX explanation pipeline.
 
         Parameters

@@ -22,7 +22,7 @@ Typical usage
 
 from smx._version import __version__  # noqa: F401
 
-from smx.pipeline import SMXExplainer
+from smx.pipeline import Explainer
 from smx.zones.extraction import extract_spectral_zones
 from smx.zones.aggregation import ZoneAggregator
 from smx.predicates.generation import PredicateGenerator
@@ -43,7 +43,7 @@ from smx.graph.interpretation import (
 __all__ = [
     "__version__",
     # pipeline (high-level facade)
-    "SMXExplainer",
+    "Explainer",
     # zones
     "extract_spectral_zones",
     "ZoneAggregator",

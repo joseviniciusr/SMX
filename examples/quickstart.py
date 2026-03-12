@@ -105,7 +105,7 @@ spectral_cuts = [
     ("High", 6.5, 10.0),  # covers Class B peak at 7.5
 ]
 
-explainer = smx.SMXExplainer(
+explainer = smx.Explainer(
     spectral_cuts=spectral_cuts,
     quantiles=[0.25, 0.50, 0.75],
     seeds=[0, 1, 2, 3],
