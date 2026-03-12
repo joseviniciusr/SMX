@@ -39,6 +39,7 @@ from smx.graph.interpretation import (
     reconstruct_threshold_to_spectrum,
     extract_predicate_info,
 )
+from smx.datasets.synthetic import generate_synthetic_spectral_data
 
 __all__ = [
     "__version__",
@@ -62,4 +63,6 @@ __all__ = [
     "map_thresholds_to_natural",
     "reconstruct_threshold_to_spectrum",
     "extract_predicate_info",
+    # datasets
+    "generate_synthetic_spectral_data",
 ]
