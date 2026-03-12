@@ -130,7 +130,7 @@ predicates_df = gen.predicates_df_
 print(f"\nGenerated {len(predicates_df)} predicates across {len(spectral_cuts)} zones.")
 
 # ------------------------------------------------------------------
-# 5d. Run bagging + covariance metric + graph + LRC across seeds
+# 5d. Run bagging + perturbation metric + graph + LRC across seeds
 # ------------------------------------------------------------------
 n_cal = len(zone_scores)
 SEEDS = [0, 1, 2, 3]
@@ -159,18 +159,27 @@ for seed in SEEDS:
                 df_info["Predicted_Y"] >= 0.5, "A", "B"
             )
 
-    # Covariance metric
-    metric = smx.CovarianceMetric(metric="covariance", threshold=0.01, n_neighbors=5)
+    # Perturbation metric (replaces each zone with its median and measures
+    # the probability shift on the SVM calibration predictions)
+    metric = smx.PerturbationMetric(
+        estimator=svm,
+        Xcalclass_prep=X_cal_prep,
+        predicates_df=predicates_df,
+        spectral_cuts=spectral_cuts,
+        perturbation_mode="median",
+        stats_source="full",
+        metric="probability_shift",
+        normalize_by_zone_size=True,
+        zone_size_exponent=1.0,
+    )
     rankings = metric.compute(bags)
 
-    # Build predicate graph (weight edges by PC1 explained variance)
+    # Build predicate graph
     builder = smx.PredicateGraphBuilder(
         random_state=seed,
         show_details=False,
-        var_exp=True,
-        pca_info_dict=pca_info,
     )
-    graph = builder.build(bags, rankings, metric_column="Covariance")
+    graph = builder.build(bags, rankings, metric_column="Perturbation")
 
     # Local Reaching Centrality
     predicate_nodes = [
