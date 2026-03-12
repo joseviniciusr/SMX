@@ -73,7 +73,7 @@ class Explainer:
         Exponent applied to zone size during normalisation.
     covariance_threshold : float, default 0.01
         Minimum covariance value to keep a predicate (covariance metric only).
-    var_exp : bool, default False
+    var_exp : bool, default True
         Weight graph edges by PC1 explained variance of the source zone.
     show_graph_details : bool, default False
         Print bidirectional-edge details during graph construction.
@@ -122,7 +122,7 @@ class Explainer:
         normalize_by_zone_size: bool = True,
         zone_size_exponent: float = 1.0,
         covariance_threshold: float = 0.01,
-        var_exp: bool = False,
+        var_exp: bool = True,
         show_graph_details: bool = False,
         class_threshold: float = 0.5,
     ) -> None:
