@@ -8,10 +8,8 @@ This script walks through the complete SMX pipeline:
   2. Split calibration / test sets
   3. Mean-centre the spectra
   4. Train an SVM classifier
-  5. Run the SMX explanation pipeline (zone extraction → predicate generation
-     → bagging → covariance metric → graph → LRC)
-  6. Map thresholds back to the natural (unpreprocessed) scale
-  7. Print the ranked spectral zones
+  5. Run the SMX explanation pipeline via SMXExplainer (single object, single call)
+  6. Print the ranked spectral zones and export HTML plots
 
 Dependencies: numpy, pandas, scikit-learn, smx
 """
@@ -99,118 +97,30 @@ class_a_idx = class_order.index("A")
 y_pred_cal = pd.Series(svm.predict_proba(X_cal_prep)[:, class_a_idx])
 
 # =============================================================================
-# 5. SMX pipeline
+# 5. SMX pipeline (single object, single fit call)
 # =============================================================================
-
-# ------------------------------------------------------------------
-# 5a. Define spectral zones and extract them
-# ------------------------------------------------------------------
 spectral_cuts = [
     ("Low",  1.0, 4.0),   # covers Class A peak at 2.5 and Class B peak at 3.5
     ("Mid",  4.0, 6.5),   # covers Class A peak at 5.5
     ("High", 6.5, 10.0),  # covers Class B peak at 7.5
 ]
 
-zones_prep = smx.extract_spectral_zones(X_cal_prep, spectral_cuts)
-
-# ------------------------------------------------------------------
-# 5b. Aggregate each zone to a single score (PCA, PC1)
-# ------------------------------------------------------------------
-aggregator = smx.ZoneAggregator(method="pca")
-zone_scores = aggregator.fit_transform(zones_prep)   # DataFrame: samples × zones
-pca_info = aggregator.pca_info_
-
-# ------------------------------------------------------------------
-# 5c. Generate binary predicates from quantile thresholds
-# ------------------------------------------------------------------
-gen = smx.PredicateGenerator(quantiles=[0.25, 0.50, 0.75])
-gen.fit(zone_scores)
-predicates_df = gen.predicates_df_
-
-print(f"\nGenerated {len(predicates_df)} predicates across {len(spectral_cuts)} zones.")
-
-# ------------------------------------------------------------------
-# 5d. Run bagging + perturbation metric + graph + LRC across seeds
-# ------------------------------------------------------------------
-n_cal = len(zone_scores)
-SEEDS = [0, 1, 2, 3]
-
-lrc_by_seed = {}
-
-for seed in SEEDS:
-    print(f"\n── Seed {seed} ──────────────────────────────────────────────")
-
-    # Bagging
-    bagger = smx.PredicateBagger(
-        n_bags=10,
-        n_samples_per_bag=int(n_cal * 0.8),
-        min_samples_per_predicate=int(n_cal * 0.2),
-        replace=False,
-        sample_bagging=True,
-        predicate_bagging=False,
-        random_seed=seed,
-    )
-    bags = bagger.run(zone_scores, y_pred_cal, predicates_df)
-
-    # Tag each sample with a discrete class prediction
-    for bag_name, pred_dict in bags.items():
-        for rule, df_info in pred_dict.items():
-            df_info["Class_Predicted"] = np.where(
-                df_info["Predicted_Y"] >= 0.5, "A", "B"
-            )
-
-    # Perturbation metric (replaces each zone with its median and measures
-    # the probability shift on the SVM calibration predictions)
-    metric = smx.PerturbationMetric(
-        estimator=svm,
-        Xcalclass_prep=X_cal_prep,
-        predicates_df=predicates_df,
-        spectral_cuts=spectral_cuts,
-        perturbation_mode="median",
-        stats_source="full",
-        metric="probability_shift",
-        normalize_by_zone_size=True,
-        zone_size_exponent=1.0,
-    )
-    rankings = metric.compute(bags)
-
-    # Build predicate graph
-    builder = smx.PredicateGraphBuilder(
-        random_state=seed,
-        show_details=False,
-    )
-    graph = builder.build(bags, rankings, metric_column="Perturbation")
-
-    # Local Reaching Centrality
-    predicate_nodes = [
-        n for n, attr in graph.nodes(data=True) if attr.get("node_type") == "predicate"
-    ]
-    if not predicate_nodes:
-        print(f"  Seed {seed} produced an empty graph — skipping.")
-        continue
-
-    lrc_df = smx.compute_lrc(graph, predicates_df)
-    lrc_df["Seed"] = seed
-    lrc_by_seed[seed] = lrc_df
-
-# ------------------------------------------------------------------
-# 5e. Aggregate LRC across seeds
-# ------------------------------------------------------------------
-valid_seeds = list(lrc_by_seed.keys())
-lrc_summed, lrc_unique = smx.aggregate_lrc_across_seeds(lrc_by_seed, valid_seeds)
-
-# ------------------------------------------------------------------
-# 5f. Map thresholds to natural (unpreprocessed) scale
-# ------------------------------------------------------------------
-zones_natural = smx.extract_spectral_zones(X_cal, spectral_cuts)
-aggregator_natural = smx.ZoneAggregator(method="pca")
-zone_scores_natural = aggregator_natural.fit_transform(zones_natural)
-
-lrc_natural = smx.map_thresholds_to_natural(
-    lrc_df=lrc_summed,
-    zone_sums_preprocessed=zone_scores,
-    zone_sums_natural=zone_scores_natural,
+explainer = smx.SMXExplainer(
+    spectral_cuts=spectral_cuts,
+    quantiles=[0.25, 0.50, 0.75],
+    seeds=[0, 1, 2, 3],
+    n_bags=10,
+    n_samples_fraction=0.8,
+    min_samples_fraction=0.2,
+    metric="perturbation",
+    estimator=svm,
+    perturbation_mode="median",
+    perturbation_metric="probability_shift",
+    normalize_by_zone_size=True,
+    zone_size_exponent=1.0,
 )
+
+explainer.fit(X_cal_prep, y_pred_cal, X_cal_natural=X_cal)
 
 # =============================================================================
 # 6. Results
@@ -220,7 +130,7 @@ print("Top predicates by Local Reaching Centrality")
 print("=" * 60)
 
 top = (
-    lrc_natural[lrc_natural["Zone"].notna()]
+    explainer.lrc_natural_[explainer.lrc_natural_["Zone"].notna()]
     .drop_duplicates(subset="Zone")
     .sort_values("Local_Reaching_Centrality", ascending=False)
     [["Zone", "Operator", "Threshold_Natural", "Local_Reaching_Centrality"]]
@@ -239,24 +149,25 @@ output_dir.mkdir(exist_ok=True)
 
 # Use the top-ranked predicate for each zone
 top_per_zone = (
-    lrc_natural[lrc_natural["Zone"].notna()]
+    explainer.lrc_natural_[explainer.lrc_natural_["Zone"].notna()]
     .sort_values("Local_Reaching_Centrality", ascending=False)
     .drop_duplicates(subset="Zone")
 )
 
-pca_info_natural = aggregator_natural.pca_info_
-
 print("\nExporting HTML plots…")
 for _, row in top_per_zone.iterrows():
     zone_name = row["Zone"]
-    row_index = lrc_natural.index[lrc_natural["Node"] == row["Node"]].tolist()[0]
+    row_index = explainer.lrc_natural_.index[
+        explainer.lrc_natural_["Node"] == row["Node"]
+    ].tolist()[0]
     html_path = output_dir / f"threshold_{zone_name.replace(' ', '_')}.html"
     plot_threshold_spectrum(
-        lrc_natural_df=lrc_natural,
+        lrc_natural_df=explainer.lrc_natural_,
         row_index=row_index,
-        spectral_zones_original=zones_natural,
-        pca_info_dict_original=pca_info_natural,
+        spectral_zones_original=explainer.zones_natural_,
+        pca_info_dict_original=explainer.pca_info_natural_,
         y_labels=y_cal,
         output_path=html_path,
     )
     print(f"  Saved: {html_path}")
+
