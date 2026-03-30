@@ -20,6 +20,8 @@ from sklearn.svm import SVC
 from sklearn.model_selection import train_test_split
 
 from smx import SMX, generate_synthetic_spectral_data
+from smx.graph.interpretation import reconstruct_threshold_to_spectrum
+import plotly.graph_objects as go
 
 # ── Reproducibility ───────────────────────────────────────────────────────────
 
@@ -188,5 +190,80 @@ for _, row in top_per_zone.iterrows():
         output_path=html_path,
     )
     print(f"  Saved: {html_path}")
+
+# Also export interactive Plotly threshold-spectrum overlays (matching notebook)
+def plot_zone_and_save(lrc_natural_df, row_index, spectral_zones_original,
+                       pca_info_dict_original, y_labels, output_path):
+    zone_name = lrc_natural_df.iloc[row_index]["Zone"]
+    threshold_score = float(lrc_natural_df.iloc[row_index]["Threshold_Natural"])
+
+    threshold_spectrum = reconstruct_threshold_to_spectrum(
+        threshold_value=threshold_score,
+        zone_name=zone_name,
+        pca_info_dict=pca_info_dict_original,
+    )
+
+    zone_df = spectral_zones_original[zone_name]
+    x_values = pd.to_numeric(zone_df.columns, errors="coerce")
+
+    fig = go.Figure()
+    CLASS_COLORS = {"A": "gold", "B": "blue"}
+    seen_classes = set()
+    for idx, r in zone_df.iterrows():
+        class_label = y_labels.iloc[idx] if idx < len(y_labels) else "Unknown"
+        show_legend = class_label not in seen_classes
+        seen_classes.add(class_label)
+        fig.add_trace(
+            go.Scatter(
+                x=x_values,
+                y=r.values,
+                mode="lines",
+                line=dict(color=CLASS_COLORS.get(class_label, "rgba(128,128,128,0.3)"), width=0.5),
+                name=f"Class {class_label}",
+                legendgroup=class_label,
+                showlegend=show_legend,
+                hoverinfo="skip",
+            )
+        )
+
+    fig.add_trace(
+        go.Scatter(
+            x=x_values,
+            y=threshold_spectrum.values,
+            mode="lines",
+            line=dict(color="red", width=4, dash="dash"),
+            name=f"Threshold Spectrum ({threshold_spectrum.name})",
+        )
+    )
+
+    fig.update_layout(
+        title=f"Zone '{zone_name}' — Multivariate Threshold (Predicate: {lrc_natural_df.iloc[row_index].get('Node_Natural', '')})",
+        xaxis_title="Variables (Artificial Units)",
+        yaxis_title="Intensity (Arbitrary Units)",
+        template="plotly_white",
+        showlegend=True,
+        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+    )
+
+    fig.write_html(str(output_path))
+
+# Save Plotly versions for the top-ranked predicate per zone as well
+plotly_out = Path("smx_quickstart_plots_plotly")
+plotly_out.mkdir(exist_ok=True)
+for _, row in top_per_zone.iterrows():
+    zone_name = row["Zone"]
+    row_index = smx.lrc_natural_.index[
+        smx.lrc_natural_["Node"] == row["Node"]
+    ].tolist()[0]
+    html_path = plotly_out / f"threshold_plotly_{zone_name.replace(' ', '_')}.html"
+    plot_zone_and_save(
+        lrc_natural_df=smx.lrc_natural_,
+        row_index=row_index,
+        spectral_zones_original=smx.zones_natural_,
+        pca_info_dict_original=smx.pca_info_natural_,
+        y_labels=y_cal,
+        output_path=html_path,
+    )
+    print(f"  Saved Plotly: {html_path}")
 
 
