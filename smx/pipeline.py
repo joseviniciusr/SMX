@@ -283,14 +283,20 @@ class SMX:
                 n for n, attr in graph.nodes(data=True)
                 if attr.get("node_type") == "predicate"
             ]
-            if not predicate_nodes:
+            if len(predicate_nodes) < 1 or graph.number_of_nodes() < 2:
                 logger.warning(
-                    "Seed %d produced an empty graph (%s) — skipping.",
-                    seed, self.metric,
+                    "Seed %d produced an undersized graph (%s, nodes=%d, predicate_nodes=%d) — skipping.",
+                    seed, self.metric, graph.number_of_nodes(), len(predicate_nodes)
                 )
                 continue
 
             lrc_df_seed = compute_lrc(graph, predicates_df)
+            if lrc_df_seed.empty:
+                logger.warning(
+                    "Seed %d produced an empty LRC table after graph processing (%s) — skipping.",
+                    seed, self.metric,
+                )
+                continue
             lrc_df_seed["Seed"] = seed
             lrc_by_seed[seed] = lrc_df_seed
 
