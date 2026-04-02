@@ -32,11 +32,16 @@ def compute_lrc(graph: nx.DiGraph, predicates_df: pd.DataFrame) -> pd.DataFrame:
     """
     print("\nProcessing graph LRC…")
 
+    if graph.number_of_nodes() == 0:
+        return pd.DataFrame(
+            columns=["Node", "Local_Reaching_Centrality", "Zone", "Threshold", "Operator"]
+        )
+
     lrc_values: Dict[str, float] = {}
     for node in graph.nodes():
         try:
             lrc_values[node] = nx.local_reaching_centrality(graph, node, weight="weight")
-        except ZeroDivisionError:
+        except (ZeroDivisionError, nx.NetworkXError):
             lrc_values[node] = 0.0
 
     sorted_lrc = sorted(lrc_values.items(), key=lambda x: x[1], reverse=True)
