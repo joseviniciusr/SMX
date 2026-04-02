@@ -33,6 +33,33 @@ def gaussian_peak_model(x, center, amplitude, width):
     return amplitude * np.exp(-(x - center) ** 2 / (2 * width ** 2))
 
 
+def _resolve_peak_parameters(
+    peak,
+    default_amplitude_mean,
+    default_amplitude_std,
+    default_width_mean,
+    default_width_std,
+):
+    """Resolve peak parameters from either scalar or dict peak definitions."""
+    if isinstance(peak, dict):
+        if "center" not in peak:
+            raise KeyError("Each peak dictionary must include the 'center' key.")
+
+        center = peak["center"]
+        amplitude_mean = peak.get("amplitude_mean", default_amplitude_mean)
+        amplitude_std = peak.get("amplitude_std", default_amplitude_std)
+        width_mean = peak.get("width_mean", default_width_mean)
+        width_std = peak.get("width_std", default_width_std)
+    else:
+        center = peak
+        amplitude_mean = default_amplitude_mean
+        amplitude_std = default_amplitude_std
+        width_mean = default_width_mean
+        width_std = default_width_std
+
+    return center, amplitude_mean, amplitude_std, width_mean, width_std
+
+
 def _generate_single_spectrum(
     x,
     peaks,
@@ -51,8 +78,15 @@ def _generate_single_spectrum(
     ----------
     x : ndarray
         Spectral axis.
-    peaks : list of float
-        Peak centre positions to add.
+    peaks : list of float or list of dict
+        Peak definitions. Each item can be:
+
+        - float: peak centre position.
+        - dict: custom peak configuration with keys:
+          ``center`` (required), ``amplitude_mean``, ``amplitude_std``,
+          ``width_mean``, ``width_std`` (all optional).
+
+        If a key is not provided in a peak dict, class-level defaults are used.
     amplitude_mean, amplitude_std : float
         Mean and standard deviation of peak amplitude.
     width_mean, width_std : float
@@ -69,9 +103,18 @@ def _generate_single_spectrum(
     spectrum = np.random.normal(0, noise_std, len(x))
 
     # Add each peak with random variability
-    for center in peaks:
-        amp = np.random.normal(amplitude_mean, amplitude_std)
-        width = np.random.normal(width_mean, width_std)
+    for peak in peaks:
+        center, peak_amp_mean, peak_amp_std, peak_width_mean, peak_width_std = (
+            _resolve_peak_parameters(
+                peak,
+                amplitude_mean,
+                amplitude_std,
+                width_mean,
+                width_std,
+            )
+        )
+        amp = np.random.normal(peak_amp_mean, peak_amp_std)
+        width = np.random.normal(peak_width_mean, peak_width_std)
         spectrum += gaussian_peak_model(x, center, amp, width)
 
     return spectrum
@@ -99,7 +142,22 @@ def generate_synthetic_spectral_data(
 
         - ``'name'`` (str): class label (e.g. ``'A'``, ``'B'``, ``'Soil'``).
         - ``'n_samples'`` (int): number of samples to generate.
-        - ``'peaks'`` (list of float): peak centre positions on the spectral axis.
+                - ``'peaks'`` (list): peak definitions on the spectral axis.
+
+                    Supported formats:
+
+                    1) ``[250, 550, 700]``
+                         - Uses class-level amplitude/width defaults for all peaks.
+
+                    2) ``[
+                                 {'center': 250, 'amplitude_mean': 0.9, 'width_mean': 10},
+                                 {'center': 550, 'amplitude_mean': 1.3, 'width_mean': 18},
+                                 {'center': 700, 'amplitude_mean': 0.7, 'width_mean': 25},
+                         ]``
+                         - Allows per-peak amplitude/width customisation.
+                         - Optional per-peak keys:
+                             ``amplitude_mean``, ``amplitude_std``, ``width_mean``, ``width_std``.
+                         - Missing per-peak keys fallback to class-level defaults below.
         - ``'amplitude_mean'`` (float, optional, default ``1.0``): mean peak amplitude.
         - ``'amplitude_std'`` (float, optional, default ``0.1``): std dev of amplitude.
         - ``'width_mean'`` (float, optional, default ``15.0``): mean peak width (σ).
@@ -112,9 +170,16 @@ def generate_synthetic_spectral_data(
                 {
                     'name': 'A',
                     'n_samples': 50,
-                    'peaks': [250, 550, 700, 850],
+                    'peaks': [
+                        {'center': 250, 'amplitude_mean': 0.9, 'width_mean': 12},
+                        {'center': 550, 'amplitude_mean': 1.4, 'width_mean': 20},
+                        {'center': 700, 'amplitude_mean': 0.8, 'width_mean': 16},
+                        {'center': 850, 'amplitude_mean': 1.1, 'width_mean': 24},
+                    ],
                     'amplitude_mean': 1.0,
+                    'amplitude_std': 0.1,
                     'width_mean': 15.0,
+                    'width_std': 2.0,
                 },
                 {
                     'name': 'B',
