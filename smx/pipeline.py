@@ -29,7 +29,7 @@ from smx.graph.interpretation import map_thresholds_to_natural
 
 logger = logging.getLogger(__name__)
 
-SpectralCuts = List[tuple]   # list of (name, start, end)
+SpectralCuts = List[tuple]   # list of (name, start, end) or (name, start, end, group)
 
 
 class SMX:
