@@ -46,12 +46,8 @@ class SMX:
     quantiles : list of float
         Quantile fractions for predicate generation, e.g. ``[0.25, 0.5, 0.75]``.
     n_repetitions : int, default 4
-        Number of independent bagging repetitions (seeds).  Generates seeds
-        ``[0, 1, …, n_repetitions-1]`` automatically.  Ignored when *seeds*
-        is passed explicitly.
-    seeds : list of int, optional
-        Explicit random seeds for the bagging loop.  When provided,
-        *n_repetitions* is ignored.  Defaults to ``list(range(n_repetitions))``.
+        Number of independent bagging repetitions.  Seeds are generated as
+        ``[0, 1, …, n_repetitions-1]``.
     n_bags : int, default 10
         Number of bags per seed.
     n_samples_fraction : float, default 0.8
@@ -108,7 +104,7 @@ class SMX:
     graphs_by_seed_ : dict[int, nx.DiGraph]
         Per-seed directed predicate graphs (useful for debugging).
     valid_seeds_ : list[int]
-        Seeds that produced a non-empty graph (subset of *seeds*).
+        Seeds that produced a non-empty graph (subset of ``seeds``).
     """
 
     def __init__(
@@ -116,7 +112,6 @@ class SMX:
         spectral_cuts: SpectralCuts,
         quantiles: List[float],
         n_repetitions: int = 4,
-        seeds: Optional[List[int]] = None,
         n_bags: int = 10,
         n_samples_fraction: float = 0.8,
         min_samples_fraction: float = 0.2,
@@ -140,7 +135,7 @@ class SMX:
         self.spectral_cuts = spectral_cuts
         self.quantiles = quantiles
         self.n_repetitions = n_repetitions
-        self.seeds = seeds if seeds is not None else list(range(n_repetitions))
+        self.seeds = list(range(n_repetitions))
         self.n_bags = n_bags
         self.n_samples_fraction = n_samples_fraction
         self.min_samples_fraction = min_samples_fraction
