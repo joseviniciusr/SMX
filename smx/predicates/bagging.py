@@ -43,14 +43,14 @@ class PredicateBagger:
 
     def __init__(
         self,
-        n_bags: int = 50,
+        random_seed,
+        n_bags: int = 10,
         n_predicates_per_bag: int = 20,
-        n_samples_per_bag: int = 80,
+        n_samples_per_bag: int = 80, 
         min_samples_per_predicate: int = 5,
-        replace: bool = True,
-        random_seed: int = 42,
+        replace: bool = False,
         sample_bagging: bool = True,
-        predicate_bagging: bool = True,
+        predicate_bagging: bool = False,
     ) -> None:
         self.n_bags = n_bags
         self.n_predicates_per_bag = n_predicates_per_bag
