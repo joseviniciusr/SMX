@@ -51,10 +51,8 @@ class SMX:
     n_bags : int, default 10
         Number of bags per seed.
     n_samples_fraction : float, default 0.8
-        Fraction of calibration samples drawn per bag.
-    min_samples_fraction : float, default 0.2
-        Minimum fraction of samples satisfying a predicate for it to be
-        included in a bag.
+        Fraction of calibration samples drawn per bag.  The minimum samples
+        per predicate is hardcoded to 20 % of the dataset.
     replace : bool, default False
         Whether to sample bags with replacement.
     metric : {'covariance', 'perturbation'}, default 'perturbation'
@@ -114,7 +112,6 @@ class SMX:
         n_repetitions: int = 4,
         n_bags: int = 10,
         n_samples_fraction: float = 0.8,
-        min_samples_fraction: float = 0.2,
         replace: bool = False,
         metric: Literal["covariance", "perturbation"] = "perturbation",
         estimator: Optional[Any] = None,
@@ -138,7 +135,6 @@ class SMX:
         self.seeds = list(range(n_repetitions))
         self.n_bags = n_bags
         self.n_samples_fraction = n_samples_fraction
-        self.min_samples_fraction = min_samples_fraction
         self.replace = replace
         self.metric = metric
         self.estimator = estimator
@@ -217,9 +213,6 @@ class SMX:
         predicates_df = gen.predicates_df_
         self.predicates_df_ = predicates_df
 
-        n_samples_per_bag = max(1, int(n_cal * self.n_samples_fraction))
-        min_samples_per_predicate = max(1, int(n_cal * self.min_samples_fraction))
-
         metric_column = "Covariance" if self.metric == "covariance" else "Perturbation"
 
         # ── Step 3: seed loop ────────────────────────────────────────────
@@ -232,8 +225,7 @@ class SMX:
             # 3a. Bagging
             bagger = PredicateBagger(
                 n_bags=self.n_bags,
-                n_samples_per_bag=n_samples_per_bag,
-                min_samples_per_predicate=min_samples_per_predicate,
+                n_samples_fraction=self.n_samples_fraction,
                 replace=self.replace,
                 sample_bagging=True,
                 predicate_bagging=False,
