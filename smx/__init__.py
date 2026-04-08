@@ -40,6 +40,7 @@ from smx.graph.interpretation import (
     extract_predicate_info,
 )
 from smx.datasets.synthetic import generate_synthetic_spectral_data
+from smx.plotting import plot_threshold_spectrum, plot_zone_ranking_over_spectrum
 
 __all__ = [
     "__version__",
@@ -63,6 +64,9 @@ __all__ = [
     "map_thresholds_to_natural",
     "reconstruct_threshold_to_spectrum",
     "extract_predicate_info",
+    # plotting
+    "plot_threshold_spectrum",
+    "plot_zone_ranking_over_spectrum",
     # datasets
     "generate_synthetic_spectral_data",
 ]
