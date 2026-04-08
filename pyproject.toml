@@ -19,10 +19,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-plotting = ["plotly>=5.0"]
+plotting = [
+    "plotly>=5.0",
+    "nbformat>=4.2",
+]
 dev = [
     "pytest>=7.0",
     "plotly>=5.0",
+    "nbformat>=4.2",
 ]
 
 [tool.hatch.build.targets.wheel]

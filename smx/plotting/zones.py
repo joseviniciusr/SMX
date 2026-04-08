@@ -292,7 +292,14 @@ def plot_zone_ranking_over_spectrum(
         template="plotly_white",
         xaxis_title="Energy / Wavelength",
         yaxis_title="Intensity",
-        margin=dict(t=110, r=30, b=60, l=60),
+        margin=dict(t=110, r=30, b=90, l=60),
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.16,
+            xanchor="center",
+            x=0.5,
+        ),
     )
     fig.update_yaxes(range=[ymin - 0.05 * yspan, ymax + 0.12 * yspan])
     fig.write_html(str(output_path))

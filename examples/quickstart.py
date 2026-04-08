@@ -19,9 +19,17 @@ import pandas as pd
 from sklearn.svm import SVC
 from sklearn.model_selection import train_test_split
 
-from smx import SMX, generate_synthetic_spectral_data
+from smx import SMX, generate_synthetic_spectral_data, plot_zone_ranking_over_spectrum
 from smx.graph.interpretation import reconstruct_threshold_to_spectrum
-import plotly.graph_objects as go
+
+try:
+    import plotly.graph_objects as go
+except ImportError as exc:
+    raise ImportError(
+        "The quickstart plotting examples require plotly. "
+        "Install it with: pip install -e .[plotting] "
+        "or: pip install plotly"
+    ) from exc
 
 # ── Reproducibility ───────────────────────────────────────────────────────────
 
@@ -159,13 +167,24 @@ top = (
 print(top.to_string(index=False))
 
 # =============================================================================
-# 7. Export HTML threshold-spectrum plots (one per zone)
+# 7. Export HTML zone-ranking and threshold-spectrum plots
 # =============================================================================
 from pathlib import Path
 from smx.plotting import plot_threshold_spectrum
 
 output_dir = Path("smx_quickstart_plots")
 output_dir.mkdir(exist_ok=True)
+
+zone_ranking_path = output_dir / "zone_ranking_over_spectrum.html"
+plot_zone_ranking_over_spectrum(
+    zone_ranking_df=smx.lrc_natural_,
+    spectral_cuts=spectral_cuts,
+    reference_spectrum=smx.zones_natural_,
+    output_path=zone_ranking_path,
+    title="SMX zone ranking over spectrum",
+    spectrum_name="Mean calibration spectrum",
+)
+print(f"\nSaved zone-ranking plot: {zone_ranking_path}")
 
 # Use the top-ranked predicate for each zone
 top_per_zone = (
@@ -174,7 +193,7 @@ top_per_zone = (
     .drop_duplicates(subset="Zone")
 )
 
-print("\nExporting HTML plots…")
+print("\nExporting threshold-spectrum HTML plots…")
 for _, row in top_per_zone.iterrows():
     zone_name = row["Zone"]
     row_index = smx.lrc_natural_.index[
@@ -265,5 +284,3 @@ for _, row in top_per_zone.iterrows():
         output_path=html_path,
     )
     print(f"  Saved Plotly: {html_path}")
-
-
