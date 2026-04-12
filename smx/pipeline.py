@@ -117,6 +117,7 @@ class SMX:
         estimator: Optional[Any] = None,
         perturbation_mode: str = "median",
         perturbation_metric: str = "probability_shift",
+        perturbation_stats_source: str = "full",
         normalize_by_zone_size: bool = True,
         zone_size_exponent: float = 1.0,
         covariance_threshold: float = 0.01,
@@ -140,6 +141,7 @@ class SMX:
         self.estimator = estimator
         self.perturbation_mode = perturbation_mode
         self.perturbation_metric = perturbation_metric
+        self.perturbation_stats_source = perturbation_stats_source
         self.normalize_by_zone_size = normalize_by_zone_size
         self.zone_size_exponent = zone_size_exponent
         self.covariance_threshold = covariance_threshold
@@ -254,7 +256,7 @@ class SMX:
                     predicates_df=predicates_df,
                     spectral_cuts=self.spectral_cuts,
                     perturbation_mode=self.perturbation_mode,
-                    stats_source="full",
+                    stats_source=self.perturbation_stats_source,
                     metric=self.perturbation_metric,
                     normalize_by_zone_size=self.normalize_by_zone_size,
                     zone_size_exponent=self.zone_size_exponent,
