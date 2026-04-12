@@ -98,6 +98,27 @@ At the current stage, SMX is primarily designed for use with scikit-learn-style 
 More specifically, the minimum requirement is a valid `predict` method. In addition, some perturbation metrics require richer interfaces: `probability_shift` requires `predict_proba`, while `decision_function_shift` requires `decision_function`. Consequently, any model class that follows this contract can be integrated in a technically consistent manner, independently of the specific learning algorithm (for example, SVMs, tree ensembles, linear models, and related scikit-learn-compatible estimators).
 
 Ongoing development is focused on extending this compatibility layer beyond the current scikit-learn-centric workflow, with the objective of supporting additional model ecosystems and API styles in Python while preserving methodological consistency and interpretability guarantees.
+
+## Installation and Optional Plotting Dependency
+
+SMX is intentionally distributed with a lightweight core dependency set, where visualization is treated as an optional capability rather than a mandatory runtime requirement. This design ensures that users interested exclusively in methodological analysis (zone extraction, predicate construction, bagging, graph construction, and centrality-based ranking) can install and execute the framework without incurring additional graphical dependencies.
+
+Base installation:
+
+```bash
+pip install spectral-model-explainer
+```
+
+Installation with plotting support:
+
+```bash
+pip install "spectral-model-explainer[plotting]"
+```
+
+In practical terms, the plotting extra enables functions that generate interactive visual outputs (for example, threshold-spectrum overlays used to inspect reconstructed multivariate decision boundaries in the natural spectral domain). The analytical SMX pipeline remains fully functional without this extra.
+
+If plotting routines are invoked in an environment where the plotting extra has not been installed, SMX raises an explicit import-related error with installation guidance. This behavior is intentional: it preserves minimal installation overhead for non-visual workflows while providing clear and immediate feedback when visualization features are requested.
+
 ## Easy Usage
 
 ```python
