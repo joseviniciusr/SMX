@@ -1,16 +1,21 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.26"]
 build-backend = "hatchling.build"
 
 [project]
-name = "smx"
+name = "spectral-model-explainer"
 version = "0.1.0"
-description = "Spectral Model Explanation — interpretable, spectral-zone-level explanations for classification models trained on spectral data (XRF, Vis-NIR, etc.)"
+description = "A python library for spectral-zone-level explanations in machine learning models trained on spectral data (XRF, GRSm Raman, etc.)"
+authors = [
+    { name = "Ribeiro Jose Vinicius", email = "ribeirojosevinicius@gmail.com" },
+    { name = "Goncalves Rafael Figueira" },
+    { name = "Barbon Junior Sylvio", email = "sylvio.barbonjunior@units.it" },
+]
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
 license-files = ["LICENSE"]
-keywords = ["spectroscopy", "explainability", "XRF", "machine-learning", "interpretability"]
+keywords = ["spectroscopy", "explainability", "machine-learning", "eXplainable-AI"]
 
 dependencies = [
     "numpy>=1.24",
@@ -25,6 +30,10 @@ dev = [
     "pytest>=7.0",
     "plotly>=5.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/joseviniciusr/SMX"
+Repository = "https://github.com/joseviniciusr/SMX"
 
 [tool.hatch.build.targets.wheel]
 packages = ["smx"]
