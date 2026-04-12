@@ -2,9 +2,9 @@
 
 ![SMX Logo](SMX_logo.png)
 
-SMX (Spectral Model eXplainer) is a Python library for generating interpretable, zone-level explanations of machine learning models trained on spectral data (*e.g.*, XRF, GRS, Raman, and related modalities). The method is designed to bridge predictive performance and explainability by converting high-dimensional spectral variables into hierarchically ordered predicates, then organizing them into a directed weighted graph.
+This is the official repository for the SMX (Spectral Model eXplainer) library, a eXplainable AI tool designed to provide explanations for machine learning models trained on spectral data. SMX (*e.g.*, XRF, GRS, Raman, and related modalities).
 
-Rather than treating model explanability as a post-hoc global ranking of individual variables, SMX explicitly models the spectral axis through user-defined zones, derives threshold-based predicates from zone representations, quantifies their predictive relevance under repeated resampling, and synthesizes the final explanatory structure through graph centrality.
+SMX is a post-hoc, model-agnostic framework that explains spectral-based ML classifiers directly in terms of expert-informed spectral zones. It aggregates each zone via PCA, formulates quantile-based logical predicates, estimates their relevance through perturbation experiments within stochastic subsamples, and integrates the results into a directed weighted graph whose global structure is summarized by Local Reaching Centrality. A distinctive feature is threshold spectrum reconstruction, which back-projects each predicate's decision boundary into the original spectral domain in natural measurement units, enabling practitioners to visually compare their spectra against the model-related boundaries.
 
 ## Method Overview in the Library
 
@@ -64,7 +64,6 @@ SMX estimates predicate robustness through repeated bagging cycles. In the high-
 - `n_bags`: number of bags generated per repetition (seed)
 - `n_repetitions`: number of independent repetitions (seed loop)
 - `n_samples_fraction`: fraction of samples drawn in each bag
-- `replace`: whether sampling is with replacement
 - `quantiles`: quantile grid that defines predicate thresholds
 
 Operationally:
@@ -78,9 +77,8 @@ This design makes the explanation less dependent on a single random split and mo
 
 ## Predicate Relevance and Graph Construction
 
-Within each bag, predicates are ranked by an importance metric. The library supports at least two major strategies:
+Within each bag, predicates are ranked by an importance metric based on perturbation experiments:
 
-- covariance-based relevance (`CovarianceMetric`)
 - perturbation-based relevance (`PerturbationMetric`), using a fitted estimator
 
 `PredicateGraphBuilder` then constructs a directed graph from ranked predicates:
@@ -89,11 +87,17 @@ Within each bag, predicates are ranked by an importance metric. The library supp
 - edge weights are accumulated across bags
 - terminal class nodes are linked from last predicates in each path
 - bidirectional conflicts are resolved by keeping the stronger direction (ties are randomized)
+- edge weighting can incorporate zone-level explained variance from PCA (`var_exp=True`), which constrains the graph structure to reflect both predictive relevance and variance importance of zones
 
-Optionally, edge weighting can incorporate zone-level explained variance from PCA (`var_exp=True`).
+Finally, the graph is summarized through Local Reaching Centrality (LRC), producing a ranked list of influential predicates/zones. Accordngly, the final output is a DataFrame with predicates ranked by their LRC scores, along with their corresponding natural-scale thresholds and zone information. This allows practitioners to identify which spectral zones and thresholds are most influential in the model's decision-making process, providing insights into the underlying spectral features driving predictions. Beyond identifying relevant zones, the predicate's threshold values themselves live in PCA space and are back-projected to the original domain as per-zone multivariate thresholds that can be overlaid on measured spectra, translating an abstract condition into a physically readable boundary. Thus, SMX goes beyond numerical importances by delivering condition-aware, subset-aware explanations that support validation, hypothesis generation, and more actionable domain conclusions.
 
-Finally, the graph is summarized through Local Reaching Centrality (LRC), producing a ranked list of influential predicates/zones. The pipeline can also map thresholds from preprocessed score space back to natural spectral scale for physically meaningful interpretation.
+## Model Compatibility Note
 
+At the current stage, SMX is primarily designed for use with scikit-learn-style estimators. In practical terms, this means that when the perturbation-based relevance strategy is employed, the estimator passed to the pipeline is expected to be already fitted and to expose the standard prediction interface required by the selected perturbation metric.
+
+More specifically, the minimum requirement is a valid `predict` method. In addition, some perturbation metrics require richer interfaces: `probability_shift` requires `predict_proba`, while `decision_function_shift` requires `decision_function`. Consequently, any model class that follows this contract can be integrated in a technically consistent manner, independently of the specific learning algorithm (for example, SVMs, tree ensembles, linear models, and related scikit-learn-compatible estimators).
+
+Ongoing development is focused on extending this compatibility layer beyond the current scikit-learn-centric workflow, with the objective of supporting additional model ecosystems and API styles in Python while preserving methodological consistency and interpretability guarantees.
 ## Easy Usage
 
 ```python
