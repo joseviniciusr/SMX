@@ -140,18 +140,15 @@ model = SVC(kernel="rbf", probability=True, random_state=42)
 model.fit(X_cal_prep, y_cal_labels)
 
 # Example: probability of the first class as continuous output
-y_pred_cal = model.predict_proba(X_cal_prep)[:, 0]
+y_pred_cal = 
 
 smx = SMX(
 	spectral_cuts=spectral_cuts,
-	quantiles=[0.25, 0.50, 0.75],
+	quantiles=[0.2, 0.4, 0.6, 0.8],
 	n_repetitions=4,
 	n_bags=10,
 	n_samples_fraction=0.8,
-	replace=False,
-	metric="perturbation",
 	estimator=model,
-	perturbation_mode="median",
 	perturbation_metric="probability_shift",
 )
 
