@@ -4,8 +4,8 @@ build-backend = "poetry.core.masonry.api"
 
 [project]
 name = "spectral-model-explainer"
-version = "0.1.0"
-description = "A python library for spectral-zone-level explanations in machine learning models trained on spectral data (XRF, GRSm Raman, etc.)"
+version = "0.1.1"
+description = "A python library for spectral-zone-level explanations in machine learning models trained on spectral data (XRF, GRS, Raman, etc.)"
 authors = [
     { name = "Ribeiro Jose Vinicius", email = "ribeirojosevinicius@gmail.com" },
     { name = "Goncalves Rafael Figueira" },
