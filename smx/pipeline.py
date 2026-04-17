@@ -330,3 +330,60 @@ class SMX:
         )
 
         return self
+
+    def plot_zone_ranking_over_spectrum(
+        self,
+        output_path: Union[str, "Path"],
+        *,
+        ranking: Literal["unique", "natural"] = "unique",
+        aggregation: Literal["mean", "median"] = "mean",
+        title: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """Plot ranked spectral zones over a reference spectrum and save as HTML.
+
+        Parameters
+        ----------
+        output_path : str or Path
+            Destination ``.html`` file.
+        ranking : {'unique', 'natural'}, default 'unique'
+            Ranking source. ``'unique'`` uses ``lrc_summed_unique_`` (one row per
+            zone). ``'natural'`` uses ``lrc_natural_`` and collapses multiple
+            predicates per zone to the strongest LRC value.
+        aggregation : {'mean', 'median'}, default 'mean'
+            Aggregation used to build the reference spectrum from
+            ``zones_natural_``.
+        title : str, optional
+            Figure title override.
+
+        Returns
+        -------
+        pd.DataFrame
+            Normalized ranking table used in the figure.
+        """
+        from smx.plotting import plot_zone_ranking_over_spectrum
+
+        if self.zones_natural_ is None:
+            raise RuntimeError(
+                "SMX must be fitted before calling plot_zone_ranking_over_spectrum."
+            )
+
+        if ranking == "unique":
+            ranking_df = self.lrc_summed_unique_
+        elif ranking == "natural":
+            ranking_df = self.lrc_natural_
+        else:
+            raise ValueError("ranking must be 'unique' or 'natural'.")
+
+        if ranking_df is None or ranking_df.empty:
+            raise RuntimeError(
+                "No ranking information is available. Fit SMX successfully before plotting."
+            )
+
+        return plot_zone_ranking_over_spectrum(
+            zone_ranking_df=ranking_df,
+            spectral_cuts=self.spectral_cuts,
+            reference_spectrum=self.zones_natural_,
+            output_path=output_path,
+            aggregation=aggregation,
+            title=title or "SMX zone ranking over spectrum",
+        )

@@ -1,6 +1,8 @@
-# SMX
+<p align="center">
+  <img src="SMX_logo.png" alt="SMX logo" width="220">
+</p>
 
-![SMX Logo](https://raw.githubusercontent.com/joseviniciusr/SMX/main/SMX_logo.png)
+# SMX
 
 This is the official repository for the `spectral-model-explainer` (SMX) library, an eXplainable AI tool designed to provide explanations for Machine Learning (ML) models trained on spectral data (*e.g.*, XRF, GRS, Raman, and related modalities).
 
@@ -119,6 +121,46 @@ In practical terms, the plotting extra enables functions that generate interacti
 
 If plotting routines are invoked in an environment where the plotting extra has not been installed, SMX raises an explicit import-related error with installation guidance. This behavior is intentional: it preserves minimal installation overhead for non-visual workflows while providing clear and immediate feedback when visualization features are requested.
 
+## Plotting Helpers
+
+SMX includes Plotly-based visualization helpers for common explanation views.
+
+### Zone Ranking Over Spectrum
+
+After fitting an `SMX` explainer, you can export the ranked spectral zones over
+the reference spectrum:
+
+```python
+from smx import SMX
+
+explainer = SMX(
+    spectral_cuts=spectral_cuts,
+    quantiles=[0.2, 0.4, 0.6, 0.8],
+    seeds=[0, 1, 2, 3],
+    metric="perturbation",
+    estimator=model,
+)
+explainer.fit(X_cal_prep, y_pred_cal, X_cal_natural=X_cal_raw)
+
+explainer.plot_zone_ranking_over_spectrum(
+    "zone_ranking.html",
+    ranking="unique",
+)
+```
+
+You can also call the standalone plotting function:
+
+```python
+from smx import plot_zone_ranking_over_spectrum
+
+plot_zone_ranking_over_spectrum(
+    zone_ranking_df=explainer.lrc_summed_unique_,
+    spectral_cuts=spectral_cuts,
+    reference_spectrum=explainer.zones_natural_,
+    output_path="zone_ranking.html",
+)
+```
+
 ## Easy Usage
 
 ```python
@@ -131,9 +173,9 @@ from smx import SMX
 # y_cal_labels: class labels for calibration samples (Series)
 
 spectral_cuts = [
-	("F1", 1.0, 100.0),
-	("background", 100.0, 200.0, "background_group"),
-	("F2", 200.0, 300.0),
+("F1", 1.0, 100.0),
+("background", 100.0, 200.0, "background_group"),
+("F2", 200.0, 300.0),
 ]
 
 model = SVC(kernel="rbf", probability=True, random_state=42)
@@ -143,13 +185,13 @@ model.fit(X_cal_prep, y_cal_labels)
 y_pred_cal = 
 
 smx = SMX(
-	spectral_cuts=spectral_cuts,
-	quantiles=[0.2, 0.4, 0.6, 0.8],
-	n_repetitions=4,
-	n_bags=10,
-	n_samples_fraction=0.8,
-	estimator=model,
-	perturbation_metric="probability_shift",
+spectral_cuts=spectral_cuts,
+quantiles=[0.2, 0.4, 0.6, 0.8],
+n_repetitions=4,
+n_bags=10,
+n_samples_fraction=0.8,
+estimator=model,
+perturbation_metric="probability_shift",
 )
 
 smx.fit(X_cal_prep, y_pred_cal, X_cal_natural=X_cal_natural)
