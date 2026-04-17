@@ -24,12 +24,10 @@ class PredicateBagger:
     n_predicates_per_bag : int, default 20
         Number of predicates to draw per bag (ignored when
         ``predicate_bagging=False``).
-    n_samples_per_bag : int, default 80
-        Number of samples to draw per bag (ignored when
-        ``sample_bagging=False``).
-    min_samples_per_predicate : int, default 5
-        Minimum samples satisfying a predicate for it to be included in a bag.
-        Applied only when ``sample_bagging=True``.
+    n_samples_fraction : float, default 0.8
+        Fraction of samples to draw per bag (ignored when
+        ``sample_bagging=False``).  The minimum samples per predicate is
+        hardcoded to 20 % of the dataset.
     replace : bool, default True
         Whether to sample with replacement (bootstrap).  Ignored when
         ``sample_bagging=False``.
@@ -43,19 +41,17 @@ class PredicateBagger:
 
     def __init__(
         self,
-        n_bags: int = 50,
+        random_seed,
+        n_bags: int = 10,
         n_predicates_per_bag: int = 20,
-        n_samples_per_bag: int = 80,
-        min_samples_per_predicate: int = 5,
-        replace: bool = True,
-        random_seed: int = 42,
+        n_samples_fraction: float = 0.8,
+        replace: bool = False,
         sample_bagging: bool = True,
-        predicate_bagging: bool = True,
+        predicate_bagging: bool = False,
     ) -> None:
         self.n_bags = n_bags
         self.n_predicates_per_bag = n_predicates_per_bag
-        self.n_samples_per_bag = n_samples_per_bag
-        self.min_samples_per_predicate = min_samples_per_predicate
+        self.n_samples_fraction = n_samples_fraction
         self.replace = replace
         self.random_seed = random_seed
         self.sample_bagging = sample_bagging
@@ -91,6 +87,8 @@ class PredicateBagger:
         np.random.seed(self.random_seed)
 
         n_total = len(zone_scores_df)
+        n_samples_per_bag = max(1, int(n_total * self.n_samples_fraction))
+        min_samples_per_predicate = max(1, int(n_total * 0.2))
         all_rules = predicates_df["rule"].tolist()
         bags: Dict[str, Dict[str, pd.DataFrame]] = {}
 
@@ -99,7 +97,7 @@ class PredicateBagger:
             if self.sample_bagging:
                 bag_indices = np.random.choice(
                     range(n_total),
-                    size=self.n_samples_per_bag,
+                    size=n_samples_per_bag,
                     replace=self.replace,
                 )
             else:
@@ -138,7 +136,7 @@ class PredicateBagger:
 
                 satisfied = bag_indices[mask]
 
-                if self.sample_bagging and len(satisfied) < self.min_samples_per_predicate:
+                if self.sample_bagging and len(satisfied) < min_samples_per_predicate:
                     n_discarded += 1
                     continue
                 if len(satisfied) == 0:

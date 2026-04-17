@@ -168,38 +168,72 @@ class CovarianceMetric(BasePredicateMetric):
 def _get_zone_columns(
     predicate_rule: str,
     predicates_df: pd.DataFrame,
-    spectral_cuts: List[Tuple[str, float, float]],
+    spectral_cuts: List[Tuple],
     dataset_columns: pd.Index,
 ) -> Tuple[List[str], Optional[float], Optional[float]]:
-    """Return (zone_cols, zone_start, zone_end) for a predicate rule."""
+    """Return (zone_cols, zone_start, zone_end) for a predicate rule.
+
+    Handles 2-element ``(start, end)``, 3-element ``(name, start, end)``, and
+    4-element ``(name, start, end, group)`` cuts.  When the zone name matches a
+    *group*, all cuts belonging to that group are collected and their column
+    ranges unioned.
+    """
     mask = predicates_df["rule"] == predicate_rule
     if not mask.any():
         raise KeyError(f"Predicate '{predicate_rule}' not found in predicates_df.")
     zone_name = predicates_df.loc[mask, "zone"].values[0]
 
-    zone_start = zone_end = None
+    col_numeric = pd.to_numeric(dataset_columns.astype(str), errors="coerce")
+
+    # ── Collect column ranges that belong to this zone ───────────────────
+    # A zone_name may come from:
+    #  (a) a direct 2- or 3-element cut whose name matches, OR
+    #  (b) a 4-element cut whose *group* field matches (grouped zone)
+    col_mask = np.zeros(len(dataset_columns), dtype=bool)
+    found = False
+
     for cut in spectral_cuts:
-        if len(cut) == 3:
-            name, start, end = cut
-        elif len(cut) == 2:
-            start, end = cut
-            name = f"{start}-{end}"
+        if isinstance(cut, dict):
+            cut_name = cut.get("name", f"{cut.get('start')}-{cut.get('end')}")
+            cut_start = cut.get("start")
+            cut_end = cut.get("end")
+            cut_group = cut.get("group", None)
+        elif isinstance(cut, (list, tuple)):
+            if len(cut) == 2:
+                cut_start, cut_end = cut
+                cut_name = f"{cut_start}-{cut_end}"
+                cut_group = None
+            elif len(cut) == 3:
+                cut_name, cut_start, cut_end = cut
+                cut_group = None
+            elif len(cut) == 4:
+                cut_name, cut_start, cut_end, cut_group = cut
+            else:
+                continue
         else:
             continue
-        if name == zone_name:
-            zone_start, zone_end = float(start), float(end)
-            break
 
-    col_numeric = pd.to_numeric(dataset_columns.astype(str), errors="coerce")
-    if zone_start is not None and zone_end is not None:
-        mask_cols = (
-            (~np.isnan(col_numeric))
-            & (col_numeric >= zone_start)
-            & (col_numeric <= zone_end)
-        )
-        zone_cols = list(dataset_columns[mask_cols])
-    else:
-        zone_cols = []
+        # Direct name match (ungrouped cut) or group match (grouped cut)
+        if cut_name == zone_name or cut_group == zone_name:
+            try:
+                s, e = float(cut_start), float(cut_end)
+            except Exception:
+                continue
+            if s > e:
+                s, e = e, s
+            range_mask = (~np.isnan(col_numeric)) & (col_numeric >= s) & (col_numeric <= e)
+            col_mask |= range_mask
+            found = True
+
+    if not found:
+        return [], None, None
+
+    zone_cols = list(dataset_columns[col_mask])
+
+    # For zone_start/zone_end return the overall span (used for logging only)
+    matched_vals = col_numeric[col_mask]
+    zone_start = float(matched_vals.min()) if len(matched_vals) else None
+    zone_end = float(matched_vals.max()) if len(matched_vals) else None
 
     return zone_cols, zone_start, zone_end
 

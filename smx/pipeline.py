@@ -29,7 +29,7 @@ from smx.graph.interpretation import map_thresholds_to_natural
 
 logger = logging.getLogger(__name__)
 
-SpectralCuts = List[tuple]   # list of (name, start, end)
+SpectralCuts = List[tuple]   # list of (name, start, end) or (name, start, end, group)
 
 
 class SMX:
@@ -45,15 +45,14 @@ class SMX:
         Zone definitions, e.g. ``[("Low", 1.0, 4.0), ("High", 4.0, 10.0)]``.
     quantiles : list of float
         Quantile fractions for predicate generation, e.g. ``[0.25, 0.5, 0.75]``.
-    seeds : list of int, default [0, 1, 2, 3]
-        Random seeds for the bagging loop.
+    n_repetitions : int, default 4
+        Number of independent bagging repetitions.  Seeds are generated as
+        ``[0, 1, …, n_repetitions-1]``.
     n_bags : int, default 10
         Number of bags per seed.
     n_samples_fraction : float, default 0.8
-        Fraction of calibration samples drawn per bag.
-    min_samples_fraction : float, default 0.2
-        Minimum fraction of samples satisfying a predicate for it to be
-        included in a bag.
+        Fraction of calibration samples drawn per bag.  The minimum samples
+        per predicate is hardcoded to 20 % of the dataset.
     replace : bool, default False
         Whether to sample bags with replacement.
     metric : {'covariance', 'perturbation'}, default 'perturbation'
@@ -103,22 +102,22 @@ class SMX:
     graphs_by_seed_ : dict[int, nx.DiGraph]
         Per-seed directed predicate graphs (useful for debugging).
     valid_seeds_ : list[int]
-        Seeds that produced a non-empty graph (subset of *seeds*).
+        Seeds that produced a non-empty graph (subset of ``seeds``).
     """
 
     def __init__(
         self,
         spectral_cuts: SpectralCuts,
         quantiles: List[float],
-        seeds: Optional[List[int]] = None,
+        n_repetitions: int = 4,
         n_bags: int = 10,
         n_samples_fraction: float = 0.8,
-        min_samples_fraction: float = 0.2,
         replace: bool = False,
         metric: Literal["covariance", "perturbation"] = "perturbation",
         estimator: Optional[Any] = None,
         perturbation_mode: str = "median",
         perturbation_metric: str = "probability_shift",
+        perturbation_stats_source: str = "full",
         normalize_by_zone_size: bool = True,
         zone_size_exponent: float = 1.0,
         covariance_threshold: float = 0.01,
@@ -133,15 +132,16 @@ class SMX:
 
         self.spectral_cuts = spectral_cuts
         self.quantiles = quantiles
-        self.seeds = seeds if seeds is not None else [0, 1, 2, 3]
+        self.n_repetitions = n_repetitions
+        self.seeds = list(range(n_repetitions))
         self.n_bags = n_bags
         self.n_samples_fraction = n_samples_fraction
-        self.min_samples_fraction = min_samples_fraction
         self.replace = replace
         self.metric = metric
         self.estimator = estimator
         self.perturbation_mode = perturbation_mode
         self.perturbation_metric = perturbation_metric
+        self.perturbation_stats_source = perturbation_stats_source
         self.normalize_by_zone_size = normalize_by_zone_size
         self.zone_size_exponent = zone_size_exponent
         self.covariance_threshold = covariance_threshold
@@ -215,9 +215,6 @@ class SMX:
         predicates_df = gen.predicates_df_
         self.predicates_df_ = predicates_df
 
-        n_samples_per_bag = max(1, int(n_cal * self.n_samples_fraction))
-        min_samples_per_predicate = max(1, int(n_cal * self.min_samples_fraction))
-
         metric_column = "Covariance" if self.metric == "covariance" else "Perturbation"
 
         # ── Step 3: seed loop ────────────────────────────────────────────
@@ -230,8 +227,7 @@ class SMX:
             # 3a. Bagging
             bagger = PredicateBagger(
                 n_bags=self.n_bags,
-                n_samples_per_bag=n_samples_per_bag,
-                min_samples_per_predicate=min_samples_per_predicate,
+                n_samples_fraction=self.n_samples_fraction,
                 replace=self.replace,
                 sample_bagging=True,
                 predicate_bagging=False,
@@ -260,7 +256,7 @@ class SMX:
                     predicates_df=predicates_df,
                     spectral_cuts=self.spectral_cuts,
                     perturbation_mode=self.perturbation_mode,
-                    stats_source="full",
+                    stats_source=self.perturbation_stats_source,
                     metric=self.perturbation_metric,
                     normalize_by_zone_size=self.normalize_by_zone_size,
                     zone_size_exponent=self.zone_size_exponent,

@@ -20,7 +20,13 @@ Typical usage
 >>> lrc_df = smx.compute_lrc(graph, gen.predicates_df_)
 """
 
-from smx._version import __version__  # noqa: F401
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("spectral-model-explainer")
+except PackageNotFoundError:
+    # Fallback for source-tree usage before installation.
+    __version__ = "0.0.0"
 
 from smx.pipeline import SMX
 from smx.zones.extraction import extract_spectral_zones
