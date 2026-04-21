@@ -181,6 +181,7 @@ plot_zone_ranking_over_spectrum(
     output_path=zone_ranking_path,
     title="SMX zone ranking over spectrum",
     spectrum_name="Mean calibration spectrum",
+    class_spectra={str(cls): X_cal[y_cal == cls] for cls in y_cal.unique()},
 )
 print(f"\nSaved zone-ranking plot: {zone_ranking_path}")
 

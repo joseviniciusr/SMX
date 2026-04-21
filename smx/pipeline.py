@@ -338,6 +338,9 @@ class SMX:
         ranking: Literal["unique", "natural"] = "unique",
         aggregation: Literal["mean", "median"] = "mean",
         title: Optional[str] = None,
+        X_natural: Optional[pd.DataFrame] = None,
+        y_labels: Optional["pd.Series"] = None,
+        class_colors: Optional[dict] = None,
     ) -> pd.DataFrame:
         """Plot ranked spectral zones over a reference spectrum and save as HTML.
 
@@ -354,6 +357,16 @@ class SMX:
             ``zones_natural_``.
         title : str, optional
             Figure title override.
+        X_natural : pd.DataFrame, optional
+            Full calibration dataset in natural (unpreprocessed) units.  When
+            provided together with *y_labels*, a mean spectrum is drawn for each
+            class on top of the overall reference spectrum.
+        y_labels : pd.Series, optional
+            Class labels aligned with the rows of *X_natural*.  Required when
+            *X_natural* is given.
+        class_colors : dict[str, str], optional
+            Mapping from class label to hex/CSS color string.  Missing labels
+            fall back to a built-in palette.
 
         Returns
         -------
@@ -379,6 +392,13 @@ class SMX:
                 "No ranking information is available. Fit SMX successfully before plotting."
             )
 
+        class_spectra = None
+        if X_natural is not None and y_labels is not None:
+            class_spectra = {
+                str(cls): X_natural[y_labels.values == cls]
+                for cls in y_labels.unique()
+            }
+
         return plot_zone_ranking_over_spectrum(
             zone_ranking_df=ranking_df,
             spectral_cuts=self.spectral_cuts,
@@ -386,4 +406,6 @@ class SMX:
             output_path=output_path,
             aggregation=aggregation,
             title=title or "SMX zone ranking over spectrum",
+            class_spectra=class_spectra,
+            class_colors=class_colors,
         )
