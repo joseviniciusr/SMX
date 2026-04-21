@@ -173,17 +173,24 @@ from smx.plotting import plot_threshold_spectrum
 output_dir = Path("smx_quickstart_plots")
 output_dir.mkdir(exist_ok=True)
 
-zone_ranking_path = output_dir / "zone_ranking_over_spectrum.html"
-plot_zone_ranking_over_spectrum(
+_zone_ranking_kwargs = dict(
     zone_ranking_df=smx.lrc_natural_,
     spectral_cuts=spectral_cuts,
     reference_spectrum=smx.zones_natural_,
-    output_path=zone_ranking_path,
     title="SMX zone ranking over spectrum",
     spectrum_name="Mean calibration spectrum",
     class_spectra={str(cls): X_cal[y_cal == cls] for cls in y_cal.unique()},
 )
+
+zone_ranking_path = output_dir / "zone_ranking_over_spectrum.html"
+plot_zone_ranking_over_spectrum(output_path=zone_ranking_path, **_zone_ranking_kwargs)
 print(f"\nSaved zone-ranking plot: {zone_ranking_path}")
+
+assets_dir = Path(__file__).resolve().parent.parent / "assets"
+assets_dir.mkdir(exist_ok=True)
+zone_ranking_png = assets_dir / "zone_ranking_over_spectrum.png"
+plot_zone_ranking_over_spectrum(output_path=zone_ranking_png, width=1400, height=520, **_zone_ranking_kwargs)
+print(f"Saved zone-ranking PNG:  {zone_ranking_png}")
 
 # Use the top-ranked predicate for each zone
 top_per_zone = (

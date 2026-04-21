@@ -341,8 +341,14 @@ class SMX:
         X_natural: Optional[pd.DataFrame] = None,
         y_labels: Optional["pd.Series"] = None,
         class_colors: Optional[dict] = None,
+        width: Optional[int] = 1200,
+        height: Optional[int] = 500,
     ) -> pd.DataFrame:
-        """Plot ranked spectral zones over a reference spectrum and save as HTML.
+        """Plot ranked spectral zones over a reference spectrum and save to file.
+
+        The output format is inferred from *output_path* — ``.html`` for an
+        interactive figure, or ``.png`` / ``.svg`` / ``.pdf`` for a static image
+        (requires ``kaleido``).
 
         Parameters
         ----------
@@ -367,6 +373,10 @@ class SMX:
         class_colors : dict[str, str], optional
             Mapping from class label to hex/CSS color string.  Missing labels
             fall back to a built-in palette.
+        width : int, default 1200
+            Figure width in pixels. Used only for static image exports.
+        height : int, default 500
+            Figure height in pixels. Used only for static image exports.
 
         Returns
         -------
@@ -408,4 +418,6 @@ class SMX:
             title=title or "SMX zone ranking over spectrum",
             class_spectra=class_spectra,
             class_colors=class_colors,
+            width=width,
+            height=height,
         )

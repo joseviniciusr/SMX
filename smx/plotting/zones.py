@@ -138,8 +138,16 @@ def plot_zone_ranking_over_spectrum(
     annotation_y: float = 1.06,
     class_spectra: Optional[Dict[str, Union[pd.Series, pd.DataFrame, Dict[str, pd.DataFrame]]]] = None,
     class_colors: Optional[Dict[str, str]] = None,
+    width: Optional[int] = 1200,
+    height: Optional[int] = 500,
 ) -> pd.DataFrame:
-    """Save an HTML plot showing ranked zones overlaid on a spectrum.
+    """Save a plot showing ranked zones overlaid on a spectrum.
+
+    The output format is inferred from *output_path*:
+
+    * ``.html`` — interactive Plotly figure (default, no extra dependency)
+    * ``.png``, ``.svg``, ``.pdf``, ``.jpg`` — static image via ``kaleido``
+      (install with ``pip install kaleido``)
 
     Parameters
     ----------
@@ -172,6 +180,10 @@ def plot_zone_ranking_over_spectrum(
     class_colors : dict[str, str], optional
         Hex/CSS color strings keyed by class label. Missing labels fall back to
         a built-in palette.
+    width : int, default 1200
+        Figure width in pixels. Used only for static image exports.
+    height : int, default 500
+        Figure height in pixels. Used only for static image exports.
 
     Notes
     -----
@@ -402,6 +414,23 @@ def plot_zone_ranking_over_spectrum(
         ),
     )
     fig.update_yaxes(range=[ymin - 0.05 * yspan, ymax + 0.12 * yspan])
-    fig.write_html(str(output_path))
+
+    output_path = Path(output_path)
+    suffix = output_path.suffix.lower()
+    if suffix == ".html":
+        fig.write_html(str(output_path))
+    elif suffix in {".png", ".svg", ".pdf", ".jpg", ".jpeg", ".webp"}:
+        try:
+            fig.write_image(str(output_path), width=width, height=height)
+        except ValueError as exc:
+            raise ImportError(
+                "Static image export requires kaleido. "
+                "Install it with: pip install kaleido"
+            ) from exc
+    else:
+        raise ValueError(
+            f"Unsupported output format '{suffix}'. "
+            "Use '.html' for interactive or '.png'/'.svg'/'.pdf' for static image."
+        )
 
     return ranking_df

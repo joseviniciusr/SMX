@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="SMX_logo.png" alt="SMX logo" width="220">
+  <img src="SMX_logo.png" alt="SMX logo" width="360">
 </p>
 
 # SMX
@@ -128,7 +128,9 @@ SMX includes Plotly-based visualization helpers for common explanation views.
 ### Zone Ranking Over Spectrum
 
 After fitting an `SMX` explainer, you can export the ranked spectral zones over
-the reference spectrum:
+the reference spectrum. The output format is inferred from the file extension —
+use `.html` for an interactive figure or `.png` / `.svg` / `.pdf` for a static
+image (requires `pip install kaleido`):
 
 ```python
 from smx import SMX
@@ -142,9 +144,17 @@ explainer = SMX(
 )
 explainer.fit(X_cal_prep, y_pred_cal, X_cal_natural=X_cal_raw)
 
+# Interactive HTML
+explainer.plot_zone_ranking_over_spectrum("zone_ranking.html", ranking="unique")
+
+# Static PNG (requires kaleido)
 explainer.plot_zone_ranking_over_spectrum(
-    "zone_ranking.html",
+    "zone_ranking.png",
     ranking="unique",
+    X_natural=X_cal_raw,
+    y_labels=y_cal,
+    width=1400,
+    height=520,
 )
 ```
 
@@ -157,9 +167,12 @@ plot_zone_ranking_over_spectrum(
     zone_ranking_df=explainer.lrc_summed_unique_,
     spectral_cuts=spectral_cuts,
     reference_spectrum=explainer.zones_natural_,
-    output_path="zone_ranking.html",
+    output_path="zone_ranking.png",   # or .html
+    class_spectra={"A": X_cal[y_cal == "A"], "B": X_cal[y_cal == "B"]},
 )
 ```
+
+![Zone ranking over spectrum](assets/zone_ranking_over_spectrum.png)
 
 ## Easy Usage
 
