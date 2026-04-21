@@ -130,7 +130,7 @@ def plot_zone_ranking_over_spectrum(
     zone_ranking_df: pd.DataFrame,
     spectral_cuts: Iterable,
     reference_spectrum: Union[pd.Series, pd.DataFrame, Dict[str, pd.DataFrame]],
-    output_path: Union[str, Path],
+    output_path: Optional[Union[str, Path]],
     *,
     aggregation: str = "mean",
     title: Optional[str] = None,
@@ -142,7 +142,8 @@ def plot_zone_ranking_over_spectrum(
     width: Optional[int] = 1200,
     height: Optional[int] = 500,
     theme: Optional[SMXTheme] = None,
-) -> pd.DataFrame:
+    return_fig: bool = False,
+) -> Union[pd.DataFrame, tuple[pd.DataFrame, "go.Figure"]]:
     """Save a plot showing ranked zones overlaid on a spectrum.
 
     The output format is inferred from *output_path*:
@@ -163,8 +164,8 @@ def plot_zone_ranking_over_spectrum(
         are aggregated with ``aggregation``. If a zone dictionary is provided,
         each zone is aggregated and stitched back together following
         ``spectral_cuts`` order.
-    output_path : str or Path
-        Destination ``.html`` file.
+    output_path : str or Path, optional
+        Destination file. If ``None``, no file is written.
     aggregation : {'mean', 'median'}, default 'mean'
         Aggregation used when *reference_spectrum* is a DataFrame or zone dict.
     title : str, optional
@@ -191,6 +192,8 @@ def plot_zone_ranking_over_spectrum(
         template.  Defaults to :data:`smx.plotting.theme.DEFAULT_THEME`.
         Explicit style parameters (``colorscale``, ``class_colors``) take
         precedence over the theme.
+    return_fig : bool, default False
+        If ``True``, return ``(ranking_df, figure)`` for inline display.
 
     Notes
     -----
@@ -427,22 +430,25 @@ def plot_zone_ranking_over_spectrum(
     )
     fig.update_yaxes(range=[ymin - 0.05 * yspan, ymax + 0.12 * yspan])
 
-    output_path = Path(output_path)
-    suffix = output_path.suffix.lower()
-    if suffix == ".html":
-        fig.write_html(str(output_path))
-    elif suffix in {".png", ".svg", ".pdf", ".jpg", ".jpeg", ".webp"}:
-        try:
-            fig.write_image(str(output_path), width=width, height=height)
-        except ValueError as exc:
-            raise ImportError(
-                "Static image export requires kaleido. "
-                "Install it with: pip install kaleido"
-            ) from exc
-    else:
-        raise ValueError(
-            f"Unsupported output format '{suffix}'. "
-            "Use '.html' for interactive or '.png'/'.svg'/'.pdf' for static image."
-        )
+    if output_path is not None:
+        output_path = Path(output_path)
+        suffix = output_path.suffix.lower()
+        if suffix == ".html":
+            fig.write_html(str(output_path))
+        elif suffix in {".png", ".svg", ".pdf", ".jpg", ".jpeg", ".webp"}:
+            try:
+                fig.write_image(str(output_path), width=width, height=height)
+            except ValueError as exc:
+                raise ImportError(
+                    "Static image export requires kaleido. "
+                    "Install it with: pip install kaleido"
+                ) from exc
+        else:
+            raise ValueError(
+                f"Unsupported output format '{suffix}'. "
+                "Use '.html' for interactive or '.png'/'.svg'/'.pdf' for static image."
+            )
 
+    if return_fig:
+        return ranking_df, fig
     return ranking_df
