@@ -26,7 +26,10 @@ from smx.plotting.theme import DEFAULT_THEME, SMXTheme, blend_with_white, build_
 
 # ── Shared helpers ─────────────────────────────────────────────────────────────
 
-def _write_figure(fig, output_path: Union[str, Path], width: int, height: int) -> None:
+def _write_figure(fig, output_path: Optional[Union[str, Path]], width: int, height: int) -> None:
+    if output_path is None:
+        return
+
     output_path = Path(output_path)
     suffix = output_path.suffix.lower()
     if suffix == ".html":
@@ -152,14 +155,15 @@ def plot_lrc_bar(
 
 def plot_predicate_heatmap(
     lrc_natural_df: pd.DataFrame,
-    output_path: Union[str, Path],
+    output_path: Optional[Union[str, Path]],
     *,
     title: Optional[str] = None,
     colorscale: Optional[str] = None,
     theme: Optional[SMXTheme] = None,
     width: int = 1000,
     height: int = 550,
-) -> pd.DataFrame:
+    return_fig: bool = False,
+) -> Union[pd.DataFrame, tuple[pd.DataFrame, "go.Figure"]]:
     """Heatmap of LRC scores across zones and predicate thresholds.
 
     Rows are spectral zones (sorted by maximum LRC, highest at top). Columns
@@ -172,8 +176,8 @@ def plot_predicate_heatmap(
     lrc_natural_df : pd.DataFrame
         ``smx.lrc_natural_`` — must contain ``Zone``, ``Operator``,
         ``Threshold_Natural``, and ``Local_Reaching_Centrality`` columns.
-    output_path : str or Path
-        Destination file.
+    output_path : str or Path, optional
+        Destination file. If ``None``, no file is written.
     title : str, optional
         Figure title.
     colorscale : str, optional
@@ -184,6 +188,8 @@ def plot_predicate_heatmap(
         Figure width (static export).
     height : int, default 550
         Figure height (static export).
+    return_fig : bool, default False
+        If ``True``, return ``(pivot_df, figure)`` for inline display.
 
     Returns
     -------
@@ -305,6 +311,8 @@ def plot_predicate_heatmap(
     )
 
     _write_figure(fig, output_path, width, height)
+    if return_fig:
+        return pivot, fig
     return pivot
 
 
@@ -313,7 +321,7 @@ def plot_predicate_heatmap(
 def plot_zone_scores(
     zones: Union[pd.DataFrame, Dict[str, pd.DataFrame]],
     y_labels: pd.Series,
-    output_path: Union[str, Path],
+    output_path: Optional[Union[str, Path]],
     spectral_cuts: Optional[Iterable] = None,
     *,
     title: Optional[str] = None,
@@ -321,7 +329,8 @@ def plot_zone_scores(
     theme: Optional[SMXTheme] = None,
     width: int = 1200,
     height: int = 580,
-) -> pd.DataFrame:
+    return_fig: bool = False,
+) -> Union[pd.DataFrame, tuple[pd.DataFrame, "go.Figure"]]:
     """Split-violin plot of PC1 scores per spectral zone, split by class.
 
     When exactly two classes are present the violins are mirrored (split).
@@ -334,8 +343,8 @@ def plot_zone_scores(
         a pre-extracted zone dict such as ``smx.zones_natural_``.
     y_labels : pd.Series
         Class labels aligned row-wise with *zones*.
-    output_path : str or Path
-        Destination file.
+    output_path : str or Path, optional
+        Destination file. If ``None``, no file is written.
     spectral_cuts : iterable, optional
         Zone boundary definitions.  Required when *zones* is a DataFrame.
     title : str, optional
@@ -348,6 +357,8 @@ def plot_zone_scores(
         Figure width (static export).
     height : int, default 580
         Figure height (static export).
+    return_fig : bool, default False
+        If ``True``, return ``(zone_scores_df, figure)`` for inline display.
 
     Returns
     -------
@@ -411,6 +422,8 @@ def plot_zone_scores(
     )
 
     _write_figure(fig, output_path, width, height)
+    if return_fig:
+        return zone_scores_df, fig
     return zone_scores_df
 
 
@@ -422,14 +435,15 @@ def plot_all_thresholds_overlay(
     pca_info_natural: Dict,
     y_labels: pd.Series,
     spectral_cuts: Iterable,
-    output_path: Union[str, Path],
+    output_path: Optional[Union[str, Path]],
     *,
     title: Optional[str] = None,
     class_colors: Optional[Dict[str, str]] = None,
     theme: Optional[SMXTheme] = None,
     width: int = 1200,
     height: int = 500,
-) -> pd.DataFrame:
+    return_fig: bool = False,
+) -> Union[pd.DataFrame, tuple[pd.DataFrame, "go.Figure"]]:
     """Full-spectrum overlay of the top-ranked threshold per zone.
 
     Mean class spectra are drawn as solid lines across the full spectral axis.
@@ -450,8 +464,8 @@ def plot_all_thresholds_overlay(
         Class labels aligned row-wise with the calibration data.
     spectral_cuts : iterable
         Zone boundary definitions.
-    output_path : str or Path
-        Destination file.
+    output_path : str or Path, optional
+        Destination file. If ``None``, no file is written.
     title : str, optional
         Figure title.
     class_colors : dict[str, str], optional
@@ -462,6 +476,8 @@ def plot_all_thresholds_overlay(
         Figure width (static export).
     height : int, default 500
         Figure height (static export).
+    return_fig : bool, default False
+        If ``True``, return ``(top_thresholds_df, figure)`` for inline display.
 
     Returns
     -------
@@ -573,4 +589,6 @@ def plot_all_thresholds_overlay(
     )
 
     _write_figure(fig, output_path, width, height)
+    if return_fig:
+        return top_per_zone, fig
     return top_per_zone
