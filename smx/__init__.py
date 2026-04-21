@@ -46,7 +46,16 @@ from smx.graph.interpretation import (
     extract_predicate_info,
 )
 from smx.datasets.synthetic import generate_synthetic_spectral_data
-from smx.plotting import plot_threshold_spectrum, plot_zone_ranking_over_spectrum
+from smx.plotting import (
+    DEFAULT_THEME,
+    SMXTheme,
+    plot_threshold_spectrum,
+    plot_zone_ranking_over_spectrum,
+    plot_lrc_bar,
+    plot_predicate_heatmap,
+    plot_zone_scores,
+    plot_all_thresholds_overlay,
+)
 
 __all__ = [
     "__version__",
@@ -71,8 +80,14 @@ __all__ = [
     "reconstruct_threshold_to_spectrum",
     "extract_predicate_info",
     # plotting
+    "DEFAULT_THEME",
+    "SMXTheme",
     "plot_threshold_spectrum",
     "plot_zone_ranking_over_spectrum",
+    "plot_lrc_bar",
+    "plot_predicate_heatmap",
+    "plot_zone_scores",
+    "plot_all_thresholds_overlay",
     # datasets
     "generate_synthetic_spectral_data",
 ]

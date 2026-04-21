@@ -12,12 +12,13 @@ ranked band over the reference spectrum.
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Dict, Iterable, Optional, Union
 
 import numpy as np
 import pandas as pd
+
+from smx.plotting.theme import DEFAULT_THEME, SMXTheme, blend_with_white, build_blended_colorscale
 
 
 def _prepare_zone_ranking_df(zone_ranking_df: pd.DataFrame) -> pd.DataFrame:
@@ -140,6 +141,7 @@ def plot_zone_ranking_over_spectrum(
     class_colors: Optional[Dict[str, str]] = None,
     width: Optional[int] = 1200,
     height: Optional[int] = 500,
+    theme: Optional[SMXTheme] = None,
 ) -> pd.DataFrame:
     """Save a plot showing ranked zones overlaid on a spectrum.
 
@@ -184,6 +186,11 @@ def plot_zone_ranking_over_spectrum(
         Figure width in pixels. Used only for static image exports.
     height : int, default 500
         Figure height in pixels. Used only for static image exports.
+    theme : SMXTheme, optional
+        Visual theme controlling colors, fonts, line styles, and the Plotly
+        template.  Defaults to :data:`smx.plotting.theme.DEFAULT_THEME`.
+        Explicit style parameters (``colorscale``, ``class_colors``) take
+        precedence over the theme.
 
     Notes
     -----
@@ -206,6 +213,10 @@ def plot_zone_ranking_over_spectrum(
             "Install it with: pip install plotly"
         ) from exc
 
+    theme = theme or DEFAULT_THEME
+    # Explicit params take priority; fall back to theme for unset style values
+    _colorscale = colorscale if colorscale != "YlOrRd" else theme.colorscale
+
     ranking_df = _prepare_zone_ranking_df(zone_ranking_df)
     spectrum = _build_reference_spectrum(reference_spectrum, spectral_cuts, aggregation=aggregation)
     spectrum = spectrum.dropna()
@@ -215,43 +226,31 @@ def plot_zone_ranking_over_spectrum(
     # Build per-class aggregated spectra when provided
     class_series: Dict[str, pd.Series] = {}
     if class_spectra:
-        palette_iter = iter(_DEFAULT_CLASS_COLORS)
         resolved_colors: Dict[str, str] = {}
+        _used_palette: list = []
         for label, src in class_spectra.items():
             cs = _build_reference_spectrum(src, spectral_cuts, aggregation=aggregation).dropna()
             if not cs.empty:
                 class_series[label] = cs
             resolved_colors[label] = (
-                (class_colors or {}).get(label) or next(palette_iter, "#888888")
+                (class_colors or {}).get(label)
+                or theme.resolve_class_color(label, _used_palette)
             )
 
     score_min = float(ranking_df["score"].min())
     score_max = float(ranking_df["score"].max())
 
-    _VRECT_OPACITY = 0.28
+    _VRECT_OPACITY = theme.zone_opacity
 
     def _score_to_color(score: float) -> str:
         if score_max == score_min:
             norm = 1.0
         else:
             norm = (float(score) - score_min) / (score_max - score_min)
-        return sample_colorscale(colorscale, [norm])[0]
-
-    def _blend_with_white(rgb_str: str, opacity: float) -> str:
-        """Return the rgb string that results from compositing rgb_str over white."""
-        vals = [int(v) for v in re.findall(r"\d+", rgb_str)][:3]
-        r = int(opacity * vals[0] + (1 - opacity) * 255)
-        g = int(opacity * vals[1] + (1 - opacity) * 255)
-        b = int(opacity * vals[2] + (1 - opacity) * 255)
-        return f"rgb({r},{g},{b})"
+        return sample_colorscale(_colorscale, [norm])[0]
 
     # Colorscale whose colors match the blended zone backgrounds exactly
-    _n_stops = 32
-    _stops = np.linspace(0, 1, _n_stops)
-    _blended_colorscale = [
-        [float(t), _blend_with_white(c, _VRECT_OPACITY)]
-        for t, c in zip(_stops, sample_colorscale(colorscale, list(_stops)))
-    ]
+    _blended_colorscale = build_blended_colorscale(_colorscale, _VRECT_OPACITY)
 
     cut_rows = []
     for cut in spectral_cuts:
@@ -292,7 +291,11 @@ def plot_zone_ranking_over_spectrum(
             x=spectrum.index.to_numpy(dtype=float),
             y=spectrum.to_numpy(dtype=float),
             mode="lines",
-            line=dict(color="#2b2b2b", width=2, dash="dash"),
+            line=dict(
+                color=theme.reference_line_color,
+                width=theme.reference_line_width,
+                dash=theme.reference_line_dash,
+            ),
             name=spectrum_name,
         )
     )
@@ -303,7 +306,7 @@ def plot_zone_ranking_over_spectrum(
                 x=cs.index.to_numpy(dtype=float),
                 y=cs.to_numpy(dtype=float),
                 mode="lines",
-                line=dict(color=resolved_colors[label], width=2),
+                line=dict(color=resolved_colors[label], width=theme.class_line_width),
                 name=f"Class {label}",
             )
         )
@@ -324,7 +327,11 @@ def plot_zone_ranking_over_spectrum(
             line_width=0,
             layer="below",
         )
-        fig.add_vline(x=start, line=dict(color="rgba(80,80,80,0.25)", width=1, dash="dot"))
+        fig.add_vline(x=start, line=dict(
+            color=theme.zone_boundary_color,
+            width=theme.zone_boundary_width,
+            dash=theme.zone_boundary_dash,
+        ))
 
         midpoint = (start + end) / 2.0
         rank_line = f"#{int(rank)}" if pd.notna(rank) else ""
@@ -339,7 +346,7 @@ def plot_zone_ranking_over_spectrum(
             text=label,
             showarrow=False,
             align="center",
-            font=dict(size=11),
+            font=dict(size=theme.annotation_font_size, family=theme.font_family),
         )
 
         fig.add_trace(
@@ -363,7 +370,11 @@ def plot_zone_ranking_over_spectrum(
     if not plot_df.empty:
         fig.add_vline(
             x=float(plot_df["end"].iloc[-1]),
-            line=dict(color="rgba(80,80,80,0.25)", width=1, dash="dot"),
+            line=dict(
+                color=theme.zone_boundary_color,
+                width=theme.zone_boundary_width,
+                dash=theme.zone_boundary_dash,
+            ),
         )
 
     # Invisible scatter whose sole purpose is to render the score colorbar
@@ -382,8 +393,8 @@ def plot_zone_ranking_over_spectrum(
                 showscale=True,
                 colorbar=dict(
                     title=dict(text="LRC score", side="right"),
-                    thickness=15,
-                    len=0.75,
+                    thickness=theme.colorbar_thickness,
+                    len=theme.colorbar_len,
                     x=1.02,
                     xanchor="left",
                     y=0.5,
@@ -400,18 +411,19 @@ def plot_zone_ranking_over_spectrum(
     )
 
     fig.update_layout(
-        title=title or "Zone ranking over spectrum",
-        template="plotly_white",
-        xaxis_title="Energy / Wavelength",
-        yaxis_title="Intensity",
-        margin=dict(t=110, r=100, b=90, l=60),
-        legend=dict(
-            orientation="h",
-            yanchor="top",
-            y=-0.16,
-            xanchor="center",
-            x=0.5,
-        ),
+        **theme.plotly_layout(
+            title=title or "Zone ranking over spectrum",
+            xaxis_title="Energy / Wavelength",
+            yaxis_title="Intensity",
+            margin=dict(t=110, r=100, b=90, l=60),
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=-0.16,
+                xanchor="center",
+                x=0.5,
+            ),
+        )
     )
     fig.update_yaxes(range=[ymin - 0.05 * yspan, ymax + 0.12 * yspan])
 

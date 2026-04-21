@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 from smx.graph.interpretation import reconstruct_threshold_to_spectrum
+from smx.plotting.theme import DEFAULT_THEME, SMXTheme
 
 
 def plot_threshold_spectrum(
@@ -25,6 +26,9 @@ def plot_threshold_spectrum(
     y_labels: pd.Series,
     output_path: Union[str, Path],
     class_colors: Optional[Dict[str, str]] = None,
+    theme: Optional[SMXTheme] = None,
+    width: Optional[int] = 900,
+    height: Optional[int] = 450,
 ) -> pd.Series:
     """Reconstruct a threshold to spectrum space and save an HTML plot.
 
@@ -49,8 +53,10 @@ def plot_threshold_spectrum(
     output_path : str or Path
         Destination path for the output ``.html`` file.
     class_colors : dict, optional
-        Mapping of class label → colour string.
-        Defaults to ``{'A': 'gold', 'B': 'blue'}``.
+        Mapping of class label → colour string.  Explicit values override the
+        theme.  Defaults to the theme's ``class_colors``.
+    theme : SMXTheme, optional
+        Visual theme.  Defaults to :data:`smx.plotting.theme.DEFAULT_THEME`.
 
     Returns
     -------
@@ -70,8 +76,8 @@ def plot_threshold_spectrum(
             "Install it with: pip install plotly"
         ) from exc
 
-    if class_colors is None:
-        class_colors = {"A": "gold", "B": "blue"}
+    theme = theme or DEFAULT_THEME
+    class_colors = class_colors or theme.class_colors
 
     zone_name = lrc_natural_df.iloc[row_index]["Zone"]
     threshold_score = float(lrc_natural_df.iloc[row_index]["Threshold_Natural"])
@@ -113,20 +119,41 @@ def plot_threshold_spectrum(
             x=x_values,
             y=threshold_spectrum.values,
             mode="lines",
-            line=dict(color="red", width=4, dash="dash"),
+            line=dict(
+                color=theme.threshold_color,
+                width=theme.threshold_line_width,
+                dash=theme.threshold_line_dash,
+            ),
             name=f"Threshold Spectrum ({threshold_spectrum.name})",
         )
     )
 
     node_natural = lrc_natural_df.iloc[row_index].get("Node_Natural", "")
     fig.update_layout(
-        title=f"Zone '{zone_name}' — Multivariate Threshold (Predicate: {node_natural})",
-        xaxis_title="Energy / Wavelength",
-        yaxis_title="Intensity",
-        template="plotly_white",
-        showlegend=True,
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+        **theme.plotly_layout(
+            title=f"Zone '{zone_name}' — Multivariate Threshold (Predicate: {node_natural})",
+            xaxis_title="Energy / Wavelength",
+            yaxis_title="Intensity",
+            showlegend=True,
+            legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+        )
     )
-    fig.write_html(str(output_path))
+    output_path = Path(output_path)
+    suffix = output_path.suffix.lower()
+    if suffix == ".html":
+        fig.write_html(str(output_path))
+    elif suffix in {".png", ".svg", ".pdf", ".jpg", ".jpeg", ".webp"}:
+        try:
+            fig.write_image(str(output_path), width=width, height=height)
+        except ValueError as exc:
+            raise ImportError(
+                "Static image export requires kaleido. "
+                "Install it with: pip install kaleido"
+            ) from exc
+    else:
+        raise ValueError(
+            f"Unsupported output format '{suffix}'. "
+            "Use '.html' for interactive or '.png'/'.svg'/'.pdf' for static image."
+        )
 
     return threshold_spectrum
