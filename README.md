@@ -121,6 +121,60 @@ In practical terms, the plotting extra enables functions that generate interacti
 
 If plotting routines are invoked in an environment where the plotting extra has not been installed, SMX raises an explicit import-related error with installation guidance. This behavior is intentional: it preserves minimal installation overhead for non-visual workflows while providing clear and immediate feedback when visualization features are requested.
 
+## Plotting Gallery
+
+SMX ships six interactive Plotly visualizations that turn LRC results into
+immediately readable explanations. All figures accept a unified `SMXTheme`
+for consistent styling and support both `.html` (interactive) and
+`.png` / `.svg` / `.pdf` (static, via `kaleido`) output formats.
+
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <a href="smx/plotting/gallery.md#plot_zone_ranking_over_spectrum">
+        <img src="assets/zone_ranking_over_spectrum.png" alt="Zone ranking over spectrum"><br>
+        <b>Zone Ranking</b>
+      </a>
+    </td>
+    <td align="center" width="33%">
+      <a href="smx/plotting/gallery.md#plot_lrc_bar">
+        <img src="assets/lrc_bar.png" alt="Zone importance"><br>
+        <b>Zone Importance</b>
+      </a>
+    </td>
+    <td align="center" width="33%">
+      <a href="smx/plotting/gallery.md#plot_predicate_heatmap">
+        <img src="assets/predicate_heatmap.png" alt="Predicate heatmap"><br>
+        <b>Predicate Heatmap</b>
+      </a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <a href="smx/plotting/gallery.md#plot_threshold_spectrum">
+        <img src="assets/threshold_spectrum.png" alt="Threshold spectrum"><br>
+        <b>Threshold Spectrum</b>
+      </a>
+    </td>
+    <td align="center" width="33%">
+      <a href="smx/plotting/gallery.md#plot_all_thresholds_overlay">
+        <img src="assets/all_thresholds_overlay.png" alt="All-zone threshold overlay"><br>
+        <b>All-Zone Threshold Overlay</b>
+      </a>
+    </td>
+    <td align="center" width="33%">
+      <a href="smx/plotting/gallery.md#plot_zone_scores">
+        <img src="assets/zone_scores.png" alt="Zone higher variance score"><br>
+        <b>Zone Higher Variance Score</b>
+      </a>
+    </td>
+  </tr>
+</table>
+
+→ See the full [Plotting Gallery](smx/plotting/gallery.md) for usage examples and parameter reference.
+
+---
+
 ## Plotting Helpers
 
 SMX includes Plotly-based visualization helpers for common explanation views.

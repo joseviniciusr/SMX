@@ -90,6 +90,8 @@ explainer.fit(X_cal_prep, y_pred_cal, X_cal_natural=X_cal)
 
 CLASS_COLORS = {"A": "#e41a1c", "B": "#377eb8"}
 
+W, H = 1200, 480  # standard gallery dimensions (2.5 : 1)
+
 # ── 1. Zone ranking over spectrum ──────────────────────────────────────────────
 print("Generating zone_ranking_over_spectrum.png …")
 plot_zone_ranking_over_spectrum(
@@ -101,8 +103,8 @@ plot_zone_ranking_over_spectrum(
     spectrum_name="Mean calibration spectrum",
     class_spectra={"A": X_cal[y_cal == "A"], "B": X_cal[y_cal == "B"]},
     class_colors=CLASS_COLORS,
-    width=1400,
-    height=520,
+    width=W,
+    height=H,
 )
 print(f"  Saved: {ASSETS / 'zone_ranking_over_spectrum.png'}")
 
@@ -127,8 +129,8 @@ plot_threshold_spectrum(
     y_labels=y_cal,
     output_path=ASSETS / "threshold_spectrum.png",
     class_colors=CLASS_COLORS,
-    width=900,
-    height=450,
+    width=W,
+    height=H,
 )
 print(f"  Saved: {ASSETS / 'threshold_spectrum.png'}")
 
@@ -138,8 +140,8 @@ plot_lrc_bar(
     zone_ranking_df=explainer.lrc_natural_,
     output_path=ASSETS / "lrc_bar.png",
     title="LRC Score by Spectral Zone",
-    width=800,
-    height=480,
+    width=W,
+    height=H,
 )
 print(f"  Saved: {ASSETS / 'lrc_bar.png'}")
 
@@ -149,8 +151,8 @@ plot_predicate_heatmap(
     lrc_natural_df=explainer.lrc_natural_,
     output_path=ASSETS / "predicate_heatmap.png",
     title="Predicate LRC Heatmap",
-    width=1000,
-    height=520,
+    width=W,
+    height=H,
 )
 print(f"  Saved: {ASSETS / 'predicate_heatmap.png'}")
 
@@ -162,8 +164,8 @@ plot_zone_scores(
     output_path=ASSETS / "zone_scores.png",
     title="PC1 Scores by Spectral Zone and Class",
     class_colors=CLASS_COLORS,
-    width=1200,
-    height=560,
+    width=W,
+    height=H,
 )
 print(f"  Saved: {ASSETS / 'zone_scores.png'}")
 
@@ -178,8 +180,8 @@ plot_all_thresholds_overlay(
     output_path=ASSETS / "all_thresholds_overlay.png",
     title="All-Zone Threshold Overlay",
     class_colors=CLASS_COLORS,
-    width=1400,
-    height=500,
+    width=W,
+    height=H,
 )
 print(f"  Saved: {ASSETS / 'all_thresholds_overlay.png'}")
 print("Done.")
