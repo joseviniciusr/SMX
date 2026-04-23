@@ -123,7 +123,7 @@ If plotting routines are invoked in an environment where the plotting extra has 
 
 ## Plotting Gallery
 
-SMX ships six interactive Plotly visualizations that turn LRC results into
+SMX ships seven interactive Plotly visualizations that turn LRC results into
 immediately readable explanations. All figures accept a unified `SMXTheme`
 for consistent styling and support both `.html` (interactive) and
 `.png` / `.svg` / `.pdf` (static, via `kaleido`) output formats.
@@ -266,6 +266,15 @@ smx.fit(X_cal_prep, y_pred_cal, X_cal_natural=X_cal_natural)
 # Main result (ranked predicates with natural-scale thresholds)
 results = smx.lrc_natural_
 print(results.head())
+
+# Optional: evaluate explanation faithfulness on a held-out set
+faithfulness = smx.evaluate_faithfulness(
+    X_test_prep,
+    ranking="unique",
+    masking_strategy="zero",
+    output_path="faithfulness_curve.html",
+)
+print(faithfulness["level"], faithfulness["auc"], faithfulness.get("plot_path"))
 ```
 
 For a complete, executable walkthrough with synthetic data and visualization outputs, see the quickstart notebook:

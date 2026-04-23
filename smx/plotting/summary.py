@@ -11,6 +11,8 @@ plot_zone_scores
     Split-violin of PC1 scores per zone by class.
 plot_all_thresholds_overlay
     Full-spectrum overlay of top-predicate threshold per zone.
+plot_faithfulness_curve
+    Progressive masking curve with shaded AUC and summary annotations.
 """
 
 from __future__ import annotations
@@ -592,3 +594,247 @@ def plot_all_thresholds_overlay(
     if return_fig:
         return top_per_zone, fig
     return top_per_zone
+
+
+# ── 5. Faithfulness Curve ─────────────────────────────────────────────────────
+
+def plot_faithfulness_curve(
+    faithfulness_result: Dict,
+    output_path: Optional[Union[str, Path]],
+    *,
+    title: Optional[str] = None,
+    theme: Optional[SMXTheme] = None,
+    width: int = 1100,
+    height: int = 560,
+    show_percentile: bool = False,
+    return_fig: bool = False,
+) -> Union[pd.DataFrame, tuple[pd.DataFrame, "go.Figure"]]:
+    """Plot the progressive masking faithfulness curve and its AUC.
+
+    Parameters
+    ----------
+    faithfulness_result : dict
+        Output of :meth:`smx.pipeline.SMX.evaluate_faithfulness`.
+        Must contain ``curve_df`` and is expected to include ``auc``,
+        ``level``, ``null_percentile``, and related summary fields.
+    output_path : str or Path, optional
+        Destination file. If ``None``, no file is written.
+    title : str, optional
+        Figure title.
+    theme : SMXTheme, optional
+        Visual theme.
+    width : int, default 1100
+        Figure width (static export).
+    height : int, default 560
+        Figure height (static export).
+    show_percentile : bool, default False
+        Whether to include the random-baseline percentile in the summary box.
+        The value remains available in ``faithfulness_result`` either way.
+    return_fig : bool, default False
+        If ``True``, return ``(curve_df, figure)`` for inline display.
+
+    Returns
+    -------
+    pd.DataFrame
+        Masking-curve DataFrame used in the plot.
+    """
+    go = _require_plotly()
+    from plotly.colors import sample_colorscale
+
+    theme = theme or DEFAULT_THEME
+
+    if not isinstance(faithfulness_result, dict):
+        raise TypeError("faithfulness_result must be a dictionary.")
+    if "curve_df" not in faithfulness_result:
+        raise ValueError("faithfulness_result must contain 'curve_df'.")
+
+    curve_df = faithfulness_result["curve_df"]
+    if not isinstance(curve_df, pd.DataFrame) or curve_df.empty:
+        raise ValueError("faithfulness_result['curve_df'] must be a non-empty DataFrame.")
+    required = {"k", "score"}
+    missing = required.difference(curve_df.columns)
+    if missing:
+        raise ValueError(
+            "faithfulness_result['curve_df'] is missing required columns: "
+            + ", ".join(sorted(missing))
+        )
+
+    curve_df = curve_df.copy().sort_values("k").reset_index(drop=True)
+    curve_with_zero = pd.concat([
+        pd.DataFrame([{
+            "k": 0,
+            "masked_zone": "none",
+            "masked_zones": tuple(),
+            "score": 0.0,
+        }]),
+        curve_df,
+    ], ignore_index=True)
+
+    auc = faithfulness_result.get("auc")
+    auc_normalized = faithfulness_result.get("auc_normalized")
+    level = faithfulness_result.get("level")
+    percentile = faithfulness_result.get("null_percentile")
+    metric = faithfulness_result.get("metric")
+    n_masked_zones = faithfulness_result.get("n_masked_zones", len(curve_df))
+
+    score_min = float(curve_df["score"].min())
+    score_max = float(curve_df["score"].max())
+    _colorscale = theme.colorscale
+    _blended_colorscale = build_blended_colorscale(_colorscale, theme.zone_opacity)
+
+    def _score_color(score: float) -> str:
+        norm = (score - score_min) / max(score_max - score_min, 1e-9)
+        return sample_colorscale(_colorscale, [norm])[0]
+
+    def _score_color_blended(score: float) -> str:
+        norm = (score - score_min) / max(score_max - score_min, 1e-9)
+        return sample_colorscale(_blended_colorscale, [norm])[0]
+
+    line_color = _score_color(score_max)
+    fill_color = _score_color_blended(score_max)
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=curve_with_zero["k"],
+        y=curve_with_zero["score"],
+        mode="lines",
+        name="Faithfulness curve",
+        line=dict(color=line_color, width=theme.threshold_line_width + 1),
+        fill="tozeroy",
+        fillcolor=fill_color.replace("rgb(", "rgba(").replace(")", f", {theme.zone_opacity})"),
+        hoverinfo="skip",
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=curve_df["k"],
+        y=curve_df["score"],
+        mode="markers+text",
+        name="Prediction shift",
+        marker=dict(
+            size=10,
+            color=curve_df["score"],
+            coloraxis="coloraxis",
+            line=dict(color="white", width=1.5),
+        ),
+        text=curve_df["masked_zone"] if "masked_zone" in curve_df.columns else None,
+        textposition="top center",
+        textfont=dict(size=theme.annotation_font_size, family=theme.font_family),
+        customdata=np.stack([
+            curve_df["masked_zone"].astype(str).to_numpy()
+            if "masked_zone" in curve_df.columns
+            else np.repeat("", len(curve_df)),
+        ], axis=-1),
+        hovertemplate=(
+            "k masked zones: %{x}<br>"
+            "Prediction shift: %{y:.6f}<br>"
+            "Latest masked zone: %{customdata[0]}<extra></extra>"
+        ),
+    ))
+
+    for k in curve_df["k"].tolist():
+        fig.add_vline(
+            x=float(k),
+            line=dict(
+                color=theme.zone_boundary_color,
+                width=theme.zone_boundary_width,
+                dash=theme.zone_boundary_dash,
+            ),
+            layer="below",
+        )
+
+
+    fig.add_annotation(
+        x=0.15,
+        y=0.85,
+        xref="paper",
+        yref="paper",
+        xanchor="right",
+        yanchor="top",
+        align="left",
+        showarrow=False,
+        bordercolor="rgba(140,140,140,0.35)",
+        borderwidth=1,
+        borderpad=8,
+        bgcolor="rgba(255,255,255,0.88)",
+        font=dict(size=17, family=theme.font_family),
+        text=f"Faithfulness Level: <br><b>{level}</b>",
+    )
+
+
+    summary_lines = []
+    if auc is not None:
+        summary_lines.append(f"AUC: {float(auc):.4f}")
+    if auc_normalized is not None:
+        summary_lines.append(f"Normalized AUC: {float(auc_normalized):.4f}")
+    if show_percentile and percentile is not None:
+        summary_lines.append(f"Percentile vs random: {float(percentile):.1f}")
+    if metric is not None:
+        summary_lines.append(f"Metric: {metric}")
+
+    fig.add_annotation(
+        x=0.995,
+        y=0.85,
+        xref="paper",
+        yref="paper",
+        xanchor="right",
+        yanchor="top",
+        align="left",
+        showarrow=False,
+        bordercolor="rgba(140,140,140,0.35)",
+        borderwidth=1,
+        borderpad=8,
+        bgcolor="rgba(255,255,255,0.88)",
+        text="<br>".join(summary_lines),
+    )
+
+    fig.add_annotation(
+        x=0.995,
+        y=0.15,
+        xref="paper",
+        yref="paper",
+        xanchor="right",
+        yanchor="top",
+        align="left",
+        showarrow=False,
+        bordercolor="rgba(140,140,140,0.35)",
+        borderwidth=1,
+        borderpad=8,
+        bgcolor="rgba(255,255,255,0.88)",
+        text=(
+            "<b>Level intervals</b><br>"
+            "Low: percentile &lt; 60<br>"
+            "Moderate: 60-79.9<br>"
+            "High: 80-94.9<br>"
+            "Very high: >= 95"
+        ),
+    )
+
+    fig.update_layout(
+        **theme.plotly_layout(
+            title=("Faithfulness via Progressive Zone Masking"),
+            xaxis=dict(
+                title="k masked zones (cumulative top-ranked masking)",
+                tickmode="linear",
+                tick0=0,
+                dtick=1,
+                range=[-0.2, max(float(n_masked_zones), float(curve_df["k"].max())) + 0.4],
+            ),
+            yaxis=dict(
+                title="Prediction shift score",
+                rangemode="tozero",
+            ),
+            coloraxis=dict(
+                colorscale=_blended_colorscale,
+                cmin=score_min,
+                cmax=score_max,
+                showscale=False,
+            ),
+            legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center"),
+            margin=dict(t=90, r=40, b=100, l=80),
+        )
+    )
+
+    _write_figure(fig, output_path, width, height)
+    if return_fig:
+        return curve_df, fig
+    return curve_df

@@ -6,6 +6,7 @@ from smx.plotting.summary import (
     plot_predicate_heatmap,
     plot_zone_scores,
     plot_all_thresholds_overlay,
+    plot_faithfulness_curve,
 )
 
 __all__ = [
@@ -17,4 +18,5 @@ __all__ = [
     "plot_predicate_heatmap",
     "plot_zone_scores",
     "plot_all_thresholds_overlay",
+    "plot_faithfulness_curve",
 ]

@@ -45,6 +45,7 @@ from smx.graph.interpretation import (
     reconstruct_threshold_to_spectrum,
     extract_predicate_info,
 )
+from smx.evaluation import progressive_masking_faithfulness
 from smx.datasets.synthetic import generate_synthetic_spectral_data
 from smx.plotting import (
     DEFAULT_THEME,
@@ -55,6 +56,7 @@ from smx.plotting import (
     plot_predicate_heatmap,
     plot_zone_scores,
     plot_all_thresholds_overlay,
+    plot_faithfulness_curve,
 )
 
 __all__ = [
@@ -79,6 +81,7 @@ __all__ = [
     "map_thresholds_to_natural",
     "reconstruct_threshold_to_spectrum",
     "extract_predicate_info",
+    "progressive_masking_faithfulness",
     # plotting
     "DEFAULT_THEME",
     "SMXTheme",
@@ -88,6 +91,7 @@ __all__ = [
     "plot_predicate_heatmap",
     "plot_zone_scores",
     "plot_all_thresholds_overlay",
+    "plot_faithfulness_curve",
     # datasets
     "generate_synthetic_spectral_data",
 ]

@@ -304,6 +304,46 @@ plot_all_thresholds_overlay(
 
 ---
 
+## `plot_faithfulness_curve`
+
+Visualizes the progressive masking faithfulness diagnostic as a prediction-shift
+curve over cumulative top-`k` masked zones. The trapezoidal AUC is shaded, and
+the figure annotates the AUC, normalized AUC, categorical level, and percentile
+against the random-ordering baseline.
+
+### Usage
+
+```python
+from smx import plot_faithfulness_curve
+
+faithfulness = explainer.evaluate_faithfulness(
+    X_test_prep,
+    ranking="unique",
+    masking_strategy="zero",
+    output_path="faithfulness_curve.html",
+)
+
+print(faithfulness["auc"], faithfulness["level"], faithfulness.get("plot_path"))
+```
+
+### Via the `SMX` convenience method
+
+```python
+explainer.evaluate_faithfulness(X_test_prep)
+explainer.plot_faithfulness("faithfulness_curve.html")
+```
+
+**Key parameters**
+
+| Parameter | Default | Description |
+|---|---|---|
+| `faithfulness_result` | — | Output of `evaluate_faithfulness()` |
+| `output_path` | — | `.html` for interactive, `.png/.svg/.pdf` for static |
+| `width` / `height` | `1100` / `560` | Pixel dimensions for static export |
+| `theme` | `DEFAULT_THEME` | `SMXTheme` instance |
+
+---
+
 ## `SMXTheme` — Visual Theme
 
 All plot functions accept a `theme` keyword argument of type `SMXTheme`.

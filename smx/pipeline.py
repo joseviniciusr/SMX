@@ -26,6 +26,7 @@ from smx.predicates.metrics import CovarianceMetric, PerturbationMetric
 from smx.graph.builder import PredicateGraphBuilder
 from smx.graph.centrality import compute_lrc, aggregate_lrc_across_seeds
 from smx.graph.interpretation import map_thresholds_to_natural
+from smx.evaluation.faithfulness import progressive_masking_faithfulness
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +104,9 @@ class SMX:
         Per-seed directed predicate graphs (useful for debugging).
     valid_seeds_ : list[int]
         Seeds that produced a non-empty graph (subset of ``seeds``).
+    faithfulness_ : dict
+        Progressive top-k masking evaluation summary produced by
+        :meth:`evaluate_faithfulness`.
     """
 
     def __init__(
@@ -160,6 +164,7 @@ class SMX:
         self.zones_natural_: Optional[Dict] = None
         self.graphs_by_seed_: Dict[int, nx.DiGraph] = {}
         self.valid_seeds_: List[int] = []
+        self.faithfulness_: Optional[Dict[str, Any]] = None
 
     # ------------------------------------------------------------------
     # Public interface
@@ -331,6 +336,120 @@ class SMX:
 
         return self
 
+    def evaluate_faithfulness(
+        self,
+        X_eval: pd.DataFrame,
+        *,
+        ranking: Literal["unique", "summed", "natural"] = "unique",
+        X_reference: Optional[pd.DataFrame] = None,
+        metric: Literal["auto", "probability_shift", "mean_abs_diff"] = "auto",
+        masking_strategy: Literal["zero", "constant", "mean", "median", "min", "max"] = "zero",
+        constant_value: float = 0.0,
+        max_k: Optional[int] = None,
+        n_random_rankings: int = 100,
+        random_state: Optional[int] = 42,
+        output_path: Optional[Union[str, "Path"]] = None,
+        plot_title: Optional[str] = None,
+        plot_width: int = 1100,
+        plot_height: int = 560,
+    ) -> Dict[str, Any]:
+        """Evaluate SMX faithfulness via progressive top-k zone masking.
+
+        The ranked spectral zones are progressively masked on *X_eval* following
+        the selected SMX ranking, and the resulting prediction shift is
+        summarized by the area under the masking curve (AUC).
+
+        Parameters
+        ----------
+        X_eval : pd.DataFrame
+            Evaluation spectra to be masked progressively.
+        ranking : {'unique', 'summed', 'natural'}, default 'unique'
+            Ranking table used to derive the ordered list of spectral zones.
+            ``'unique'`` uses the one-zone-per-row ranking in
+            :attr:`lrc_summed_unique_`. ``'summed'`` and ``'natural'`` are
+            deduplicated internally to one row per zone before masking.
+        X_reference : pd.DataFrame, optional
+            Reference spectra used to compute replacement values for
+            non-zero masking strategies. Defaults to *X_eval*.
+        metric : {'auto', 'probability_shift', 'mean_abs_diff'}, default 'auto'
+            Prediction-shift metric to evaluate. ``'auto'`` chooses
+            ``'probability_shift'`` when the estimator exposes
+            ``predict_proba()``, otherwise ``'mean_abs_diff'``.
+        masking_strategy : {'zero', 'constant', 'mean', 'median', 'min', 'max'}, default 'zero'
+            How masked spectral variables are replaced.
+        constant_value : float, default 0.0
+            Replacement value used when ``masking_strategy='constant'``.
+        max_k : int, optional
+            Maximum number of ranked zones to mask. Defaults to all ranked
+            zones available in *X_eval*.
+        n_random_rankings : int, default 100
+            Number of random rankings used to contextualize the observed AUC.
+        random_state : int, optional
+            Seed controlling the random baseline.
+        output_path : str or Path, optional
+            If provided, also export a faithfulness plot to this path. The
+            extension determines the format (``.html`` or a static image).
+        plot_title : str, optional
+            Title override used when *output_path* is provided.
+        plot_width : int, default 1100
+            Plot width in pixels. Used only when *output_path* is provided.
+        plot_height : int, default 560
+            Plot height in pixels. Used only when *output_path* is provided.
+
+        Returns
+        -------
+        dict
+            Faithfulness summary including ``curve_df``, ``auc``,
+            ``auc_normalized``, ``level``, and null-baseline statistics.
+        """
+        if self.estimator is None:
+            raise RuntimeError(
+                "SMX requires a fitted estimator to evaluate faithfulness."
+            )
+
+        ranking_map = {
+            "unique": self.lrc_summed_unique_,
+            "summed": self.lrc_summed_,
+            "natural": self.lrc_natural_,
+        }
+        if ranking not in ranking_map:
+            raise ValueError("ranking must be 'unique', 'summed', or 'natural'.")
+
+        ranking_df = ranking_map[ranking]
+        if ranking_df is None or ranking_df.empty:
+            raise RuntimeError(
+                f"No ranking data is available for ranking='{ranking}'. Fit SMX before "
+                "calling evaluate_faithfulness()."
+            )
+
+        result = progressive_masking_faithfulness(
+            estimator=self.estimator,
+            X_eval=X_eval,
+            spectral_cuts=self.spectral_cuts,
+            ranking_df=ranking_df,
+            X_reference=X_reference,
+            metric=metric,
+            masking_strategy=masking_strategy,
+            constant_value=constant_value,
+            max_k=max_k,
+            n_random_rankings=n_random_rankings,
+            random_state=random_state,
+        )
+        result["ranking_source"] = ranking
+        if output_path is not None:
+            from smx.plotting import plot_faithfulness_curve
+
+            plot_faithfulness_curve(
+                faithfulness_result=result,
+                output_path=output_path,
+                title=plot_title,
+                width=plot_width,
+                height=plot_height,
+            )
+            result["plot_path"] = str(output_path)
+        self.faithfulness_ = result
+        return result
+
     def plot_zone_ranking_over_spectrum(
         self,
         output_path: Union[str, "Path"],
@@ -418,6 +537,49 @@ class SMX:
             title=title or "SMX zone ranking over spectrum",
             class_spectra=class_spectra,
             class_colors=class_colors,
+            width=width,
+            height=height,
+        )
+
+    def plot_faithfulness(
+        self,
+        output_path: Union[str, "Path"],
+        *,
+        title: Optional[str] = None,
+        width: int = 1100,
+        height: int = 560,
+    ) -> pd.DataFrame:
+        """Plot the progressive masking faithfulness curve saved in ``faithfulness_``.
+
+        Parameters
+        ----------
+        output_path : str or Path
+            Destination file. Use ``.html`` for an interactive figure or an
+            image extension for static export.
+        title : str, optional
+            Figure title override.
+        width : int, default 1100
+            Figure width in pixels. Used only for static image exports.
+        height : int, default 560
+            Figure height in pixels. Used only for static image exports.
+
+        Returns
+        -------
+        pd.DataFrame
+            Faithfulness masking curve used in the figure.
+        """
+        from smx.plotting import plot_faithfulness_curve
+
+        if self.faithfulness_ is None:
+            raise RuntimeError(
+                "No faithfulness result is available. Call evaluate_faithfulness() "
+                "before plot_faithfulness()."
+            )
+
+        return plot_faithfulness_curve(
+            faithfulness_result=self.faithfulness_,
+            output_path=output_path,
+            title=title,
             width=width,
             height=height,
         )

@@ -19,7 +19,11 @@ import pandas as pd
 from sklearn.svm import SVC
 from sklearn.model_selection import train_test_split
 
-from smx import SMX, generate_synthetic_spectral_data, plot_zone_ranking_over_spectrum
+from smx import (
+    SMX,
+    generate_synthetic_spectral_data,
+    plot_zone_ranking_over_spectrum,
+)
 from smx.graph.interpretation import reconstruct_threshold_to_spectrum
 
 try:
@@ -164,14 +168,31 @@ top = (
 )
 print(top.to_string(index=False))
 
-# =============================================================================
-# 7. Export HTML zone-ranking and threshold-spectrum plots
-# =============================================================================
 from pathlib import Path
-from smx.plotting import plot_threshold_spectrum
 
 output_dir = Path("smx_quickstart_plots")
 output_dir.mkdir(exist_ok=True)
+
+faithfulness = smx.evaluate_faithfulness(
+    X_test_prep,
+    ranking="unique",
+    masking_strategy="zero",
+    output_path=output_dir / "faithfulness_curve.png",
+    plot_title="SMX faithfulness via progressive zone masking",
+)
+print("\nFaithfulness summary")
+print(
+    f"Level: {faithfulness['level']} | "
+    f"AUC: {faithfulness['auc']:.6f} | "
+    f"Percentile vs random: {faithfulness['null_percentile']:.1f}"
+)
+if "plot_path" in faithfulness:
+    print(f"Saved faithfulness plot: {faithfulness['plot_path']}")
+
+# =============================================================================
+# 7. Export HTML zone-ranking and threshold-spectrum plots
+# =============================================================================
+from smx.plotting import plot_threshold_spectrum
 
 _zone_ranking_kwargs = dict(
     zone_ranking_df=smx.lrc_natural_,
