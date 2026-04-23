@@ -311,6 +311,9 @@ curve over cumulative top-`k` masked zones. The trapezoidal AUC is shaded, and
 the figure annotates the AUC, normalized AUC, categorical level, and percentile
 against the random-ordering baseline.
 
+![All-zone threshold overlay](../../assets/faithfulness_curve.png)
+
+
 ### Usage
 
 ```python
@@ -343,6 +346,7 @@ explainer.plot_faithfulness("faithfulness_curve.html")
 | `theme` | `DEFAULT_THEME` | `SMXTheme` instance |
 
 ---
+
 
 ## `SMXTheme` — Visual Theme
 
