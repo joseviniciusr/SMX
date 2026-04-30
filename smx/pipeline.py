@@ -12,6 +12,7 @@ remain available for power users who need fine-grained control.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Sequence, Union
 
 import networkx as nx
@@ -81,8 +82,9 @@ class SMX:
 
     Attributes (set after :meth:`fit`)
     ------------------------------------
-    lrc_natural_ : pd.DataFrame
-        Primary result — LRC with natural-scale thresholds.  Columns:
+    lrc_natural_ : pd.DataFrame or None
+        LRC with natural-scale thresholds (available only when
+        ``X_cal_natural`` is provided to :meth:`fit`). Columns:
         ``Node``, ``Local_Reaching_Centrality``, ``Zone``, ``Threshold``,
         ``Operator``, ``Threshold_Natural``.
     lrc_summed_ : pd.DataFrame
@@ -95,10 +97,12 @@ class SMX:
         Full predicate catalogue (generated from *zone_scores_*).
     pca_info_ : dict
         PCA info for the preprocessed zones.
-    pca_info_natural_ : dict
-        PCA info for the natural (unpreprocessed) zones.
-    zones_natural_ : dict
-        Raw spectral zone DataFrames from the unpreprocessed data.
+    pca_info_natural_ : dict or None
+        PCA info for the natural (unpreprocessed) zones (only when
+        ``X_cal_natural`` is provided to :meth:`fit`).
+    zones_natural_ : dict or None
+        Raw spectral zone DataFrames from the unpreprocessed data (only when
+        ``X_cal_natural`` is provided to :meth:`fit`).
     graphs_by_seed_ : dict[int, nx.DiGraph]
         Per-seed directed predicate graphs (useful for debugging).
     valid_seeds_ : list[int]
@@ -183,8 +187,9 @@ class SMX:
         X_cal_natural : pd.DataFrame, optional
             Unpreprocessed calibration spectra with the same shape as
             *X_cal_prep*.  Required for ``lrc_natural_`` threshold mapping.
-            When ``None``, *X_cal_prep* is used as a fallback (thresholds
-            will remain on the preprocessed scale).
+            When ``None``, the natural-scale mapping step is skipped and
+            ``lrc_natural_``, ``zones_natural_``, and ``pca_info_natural_``
+            remain ``None``.
 
         Returns
         -------
@@ -313,27 +318,35 @@ class SMX:
         self.lrc_summed_ = lrc_summed
         self.lrc_summed_unique_ = lrc_summed_unique
 
-        # ── Step 5: map thresholds to natural scale ───────────────────────
-        X_natural = X_cal_natural if X_cal_natural is not None else X_cal_prep
-        logger.debug("Mapping thresholds to natural scale…")
-        zones_natural = extract_spectral_zones(X_natural, self.spectral_cuts)
-        agg_natural = ZoneAggregator(method="pca")
-        zone_scores_natural = agg_natural.fit_transform(zones_natural)
+        # ── Step 5: map thresholds to natural scale (optional) ───────────
+        if X_cal_natural is not None:
+            logger.debug("Mapping thresholds to natural scale…")
+            zones_natural = extract_spectral_zones(X_cal_natural, self.spectral_cuts)
+            agg_natural = ZoneAggregator(method="pca")
+            zone_scores_natural = agg_natural.fit_transform(zones_natural)
 
-        self.zones_natural_ = zones_natural
-        self.pca_info_natural_ = agg_natural.pca_info_
+            self.zones_natural_ = zones_natural
+            self.pca_info_natural_ = agg_natural.pca_info_
 
-        self.lrc_natural_ = map_thresholds_to_natural(
-            lrc_df=lrc_summed,
-            zone_sums_preprocessed=zone_scores,
-            zone_sums_natural=zone_scores_natural,
-        )
+            self.lrc_natural_ = map_thresholds_to_natural(
+                lrc_df=lrc_summed,
+                zone_sums_preprocessed=zone_scores,
+                zone_sums_natural=zone_scores_natural,
+            )
+        else:
+            logger.info(
+                "X_cal_natural was not provided to SMX.fit(); skipping natural-scale threshold mapping. "
+                "Preprocessed-scale outputs (lrc_summed_, lrc_summed_unique_) remain available."
+            )
+            self.lrc_natural_ = None
+            self.zones_natural_ = None
+            self.pca_info_natural_ = None
 
         return self
 
     def plot_zone_ranking_over_spectrum(
         self,
-        output_path: Union[str, "Path"],
+        output_path: Union[str, Path],
         *,
         ranking: Literal["unique", "natural"] = "unique",
         aggregation: Literal["mean", "median"] = "mean",
@@ -362,9 +375,15 @@ class SMX:
         """
         from smx.plotting import plot_zone_ranking_over_spectrum
 
-        if self.zones_natural_ is None:
+        if self.lrc_summed_ is None:
             raise RuntimeError(
                 "SMX must be fitted before calling plot_zone_ranking_over_spectrum."
+            )
+
+        if self.zones_natural_ is None:
+            raise RuntimeError(
+                "SMX was fitted without X_cal_natural, so no natural-scale reference spectrum is available for plotting. "
+                "Re-run SMX.fit(..., X_cal_natural=...) to enable plotting over the natural spectrum."
             )
 
         if ranking == "unique":
@@ -373,6 +392,12 @@ class SMX:
             ranking_df = self.lrc_natural_
         else:
             raise ValueError("ranking must be 'unique' or 'natural'.")
+
+        if ranking == "natural" and self.lrc_natural_ is None:
+            raise RuntimeError(
+                "Natural-scale ranking was requested (ranking='natural'), but SMX.fit() was called without X_cal_natural. "
+                "Re-run SMX.fit(..., X_cal_natural=...) to compute natural-scale thresholds."
+            )
 
         if ranking_df is None or ranking_df.empty:
             raise RuntimeError(
