@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="SMX_logo.png" alt="SMX logo" width="360">
+  <img src="SMX_logo.png" alt="SMX logo" width="560">
 </p>
 
 # SMX
@@ -121,6 +121,59 @@ In practical terms, the plotting extra enables functions that generate interacti
 
 If plotting routines are invoked in an environment where the plotting extra has not been installed, SMX raises an explicit import-related error with installation guidance. This behavior is intentional: it preserves minimal installation overhead for non-visual workflows while providing clear and immediate feedback when visualization features are requested.
 
+## Easy Usage
+
+```python
+import pandas as pd
+from sklearn.svm import SVC
+from smx import SMX
+
+# X_cal_prep: preprocessed calibration spectra (DataFrame)
+# X_cal_natural: original calibration spectra before preprocessing (DataFrame)
+# y_cal_labels: class labels for calibration samples (Series)
+
+spectral_cuts = [
+("F1", 1.0, 100.0),
+("background", 100.0, 200.0, "background_group"),
+("F2", 200.0, 300.0),
+]
+
+model = SVC(kernel="rbf", probability=True, random_state=42)
+model.fit(X_cal_prep, y_cal_labels)
+
+# Example: probability of the first class as continuous output
+y_pred_cal = 
+
+smx = SMX(
+spectral_cuts=spectral_cuts, # list of spectral zones defined by cuts (start, end) or (name, start, end) or (name, start, end, group)
+quantiles=[0.2, 0.4, 0.6, 0.8], # quantiles for predicate generation (each quantile produces two predicates: <= and >)
+n_repetitions=4, # number of independent repetitions 
+n_bags=10,
+n_samples_fraction=0.8,
+estimator=model,
+perturbation_metric="probability_shift" # metric for evaluating predicate relevance (supports "probability_shift", "decision_function_shift", among others)
+)
+
+smx.fit(X_cal_prep = X_cal_prep, # preprocessed calibration spectra for predicate evaluation
+        y_pred_cal = model.predict_proba(X_cal_prep)[:, 0],  # predicted probabilities for classes (it can be either 0 or 1) for building the terminal nodes 
+        X_cal_natural = X_cal_natural # natural-scale calibration spectra mapped back to the original domain
+        ) 
+
+# Main result (ranked predicates with natural-scale thresholds)
+results = smx.lrc_natural_
+print(results.head())
+
+# Optional: evaluate explanation faithfulness on a held-out set
+faithfulness = smx.evaluate_faithfulness(
+    X_test_prep,
+    ranking="unique",
+    masking_strategy="zero",
+    output_path="faithfulness_curve.html",
+)
+print(faithfulness["level"], faithfulness["auc"], faithfulness.get("plot_path"))
+```
+
+
 ## Plotting Gallery
 
 SMX ships seven interactive Plotly visualizations that turn LRC results into
@@ -189,13 +242,8 @@ image (requires `pip install kaleido`):
 ```python
 from smx import SMX
 
-explainer = SMX(
-    spectral_cuts=spectral_cuts,
-    quantiles=[0.2, 0.4, 0.6, 0.8],
-    seeds=[0, 1, 2, 3],
-    metric="perturbation",
-    estimator=model,
-)
+explainer=SMX(...) # SMX instance after fitting (see easy usage for example)
+
 explainer.fit(X_cal_prep, y_pred_cal, X_cal_natural=X_cal_raw)
 
 # Interactive HTML
@@ -227,55 +275,6 @@ plot_zone_ranking_over_spectrum(
 ```
 
 ![Zone ranking over spectrum](assets/zone_ranking_over_spectrum.png)
-
-## Easy Usage
-
-```python
-import pandas as pd
-from sklearn.svm import SVC
-from smx import SMX
-
-# X_cal_prep: preprocessed calibration spectra (DataFrame)
-# X_cal_natural: original calibration spectra before preprocessing (DataFrame)
-# y_cal_labels: class labels for calibration samples (Series)
-
-spectral_cuts = [
-("F1", 1.0, 100.0),
-("background", 100.0, 200.0, "background_group"),
-("F2", 200.0, 300.0),
-]
-
-model = SVC(kernel="rbf", probability=True, random_state=42)
-model.fit(X_cal_prep, y_cal_labels)
-
-# Example: probability of the first class as continuous output
-y_pred_cal = 
-
-smx = SMX(
-spectral_cuts=spectral_cuts,
-quantiles=[0.2, 0.4, 0.6, 0.8],
-n_repetitions=4,
-n_bags=10,
-n_samples_fraction=0.8,
-estimator=model,
-perturbation_metric="probability_shift",
-)
-
-smx.fit(X_cal_prep, y_pred_cal, X_cal_natural=X_cal_natural)
-
-# Main result (ranked predicates with natural-scale thresholds)
-results = smx.lrc_natural_
-print(results.head())
-
-# Optional: evaluate explanation faithfulness on a held-out set
-faithfulness = smx.evaluate_faithfulness(
-    X_test_prep,
-    ranking="unique",
-    masking_strategy="zero",
-    output_path="faithfulness_curve.html",
-)
-print(faithfulness["level"], faithfulness["auc"], faithfulness.get("plot_path"))
-```
 
 For a complete, executable walkthrough with synthetic data and visualization outputs, see the quickstart notebook:
 
