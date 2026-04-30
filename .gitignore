@@ -86,3 +86,7 @@ dmypy.json
 *.swp
 *.swo
 *~
+
+# Generated example outputs
+smx_quickstart_plots/
+smx_quickstart_plots_plotly/

@@ -19,7 +19,11 @@ import pandas as pd
 from sklearn.svm import SVC
 from sklearn.model_selection import train_test_split
 
-from smx import SMX, generate_synthetic_spectral_data, plot_zone_ranking_over_spectrum
+from smx import (
+    SMX,
+    generate_synthetic_spectral_data,
+    plot_zone_ranking_over_spectrum,
+)
 from smx.graph.interpretation import reconstruct_threshold_to_spectrum
 
 try:
@@ -164,25 +168,50 @@ top = (
 )
 print(top.to_string(index=False))
 
-# =============================================================================
-# 7. Export HTML zone-ranking and threshold-spectrum plots
-# =============================================================================
 from pathlib import Path
-from smx.plotting import plot_threshold_spectrum
 
 output_dir = Path("smx_quickstart_plots")
 output_dir.mkdir(exist_ok=True)
 
-zone_ranking_path = output_dir / "zone_ranking_over_spectrum.html"
-plot_zone_ranking_over_spectrum(
+faithfulness = smx.evaluate_faithfulness(
+    X_test_prep,
+    ranking="unique",
+    masking_strategy="zero",
+    output_path=output_dir / "faithfulness_curve.png",
+    plot_title="SMX faithfulness via progressive zone masking",
+)
+print("\nFaithfulness summary")
+print(
+    f"Level: {faithfulness['level']} | "
+    f"AUC: {faithfulness['auc']:.6f} | "
+    f"Percentile vs random: {faithfulness['null_percentile']:.1f}"
+)
+if "plot_path" in faithfulness:
+    print(f"Saved faithfulness plot: {faithfulness['plot_path']}")
+
+# =============================================================================
+# 7. Export HTML zone-ranking and threshold-spectrum plots
+# =============================================================================
+from smx.plotting import plot_threshold_spectrum
+
+_zone_ranking_kwargs = dict(
     zone_ranking_df=smx.lrc_natural_,
     spectral_cuts=spectral_cuts,
     reference_spectrum=smx.zones_natural_,
-    output_path=zone_ranking_path,
     title="SMX zone ranking over spectrum",
     spectrum_name="Mean calibration spectrum",
+    class_spectra={str(cls): X_cal[y_cal == cls] for cls in y_cal.unique()},
 )
+
+zone_ranking_path = output_dir / "zone_ranking_over_spectrum.html"
+plot_zone_ranking_over_spectrum(output_path=zone_ranking_path, **_zone_ranking_kwargs)
 print(f"\nSaved zone-ranking plot: {zone_ranking_path}")
+
+assets_dir = Path(__file__).resolve().parent.parent / "assets"
+assets_dir.mkdir(exist_ok=True)
+zone_ranking_png = assets_dir / "zone_ranking_over_spectrum.png"
+plot_zone_ranking_over_spectrum(output_path=zone_ranking_png, width=1400, height=520, **_zone_ranking_kwargs)
+print(f"Saved zone-ranking PNG:  {zone_ranking_png}")
 
 # Use the top-ranked predicate for each zone
 top_per_zone = (
