@@ -142,7 +142,6 @@ model = SVC(kernel="rbf", probability=True, random_state=42)
 model.fit(X_cal_prep, y_cal_labels)
 
 # Example: probability of the first class as continuous output
-y_pred_cal = 
 
 smx = SMX(
 spectral_cuts=spectral_cuts, # list of spectral zones defined by cuts (start, end) or (name, start, end) or (name, start, end, group)
