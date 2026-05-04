@@ -519,6 +519,43 @@ def plot_all_thresholds_overlay(
 
     fig = go.Figure()
 
+    # ── Per-class min / max bands per zone (shaded) ───────────────────────
+    for cls in y_labels.unique():
+        mask = (y_labels == cls).values
+        color = (class_colors or {}).get(str(cls)) or theme.resolve_class_color(str(cls), _used)
+        # Build upper (max) and lower (min) envelopes across all zones
+        upper_parts, lower_parts = [], []
+        for zone_name, _, _ in cut_rows:
+            zone_df = zones_natural.get(zone_name)
+            if zone_df is None or zone_df.empty:
+                continue
+            zone_cls = zone_df[mask]
+            zone_max = zone_cls.max(axis=0)
+            zone_min = zone_cls.min(axis=0)
+            zone_max.index = pd.to_numeric(zone_max.index.astype(str), errors="coerce")
+            zone_min.index = pd.to_numeric(zone_min.index.astype(str), errors="coerce")
+            upper_parts.append(zone_max)
+            lower_parts.append(zone_min)
+        if upper_parts:
+            full_upper = pd.concat(upper_parts).sort_index().dropna()
+            full_lower = pd.concat(lower_parts).sort_index().dropna()
+            x_envelope = full_upper.index.to_numpy(dtype=float)
+            y_upper = full_upper.to_numpy(dtype=float)
+            y_lower = full_lower.to_numpy(dtype=float)
+            # Shaded band between min and max for this class
+            fig.add_trace(go.Scatter(
+                x=np.concatenate([x_envelope, x_envelope[::-1]]),
+                y=np.concatenate([y_upper, y_lower[::-1]]),
+                fill="toself",
+                fillcolor=color,
+                line=dict(color="rgba(0,0,0,0)"),
+                opacity=0.18,
+                name=f"Class {cls} range",
+                showlegend=(not any(c for c in (class_colors or {}) if True)),
+                hovertemplate="Class {cls}<br>Zone: %{{x:.1f}}<br>Min: %{{y:.3f}}<extra></extra>",
+                customdata=[f"Class {cls}"] * len(x_envelope),
+            ))
+
     # ── Mean class spectra (full spectrum, solid) ──────────────────────────
     for cls in y_labels.unique():
         mask = (y_labels == cls).values
@@ -539,7 +576,7 @@ def plot_all_thresholds_overlay(
             y=full_mean.to_numpy(dtype=float),
             mode="lines",
             line=dict(color=color, width=theme.class_line_width),
-            name=f"Class {cls}",
+            name=f"Class {cls} mean",
         ))
 
     # ── Per-zone threshold spectra (dashed, LRC-colored) ──────────────────
