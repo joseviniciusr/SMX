@@ -279,6 +279,22 @@ For a complete, executable walkthrough with synthetic data and visualization out
 
 [examples/quickstart.ipynb](examples/quickstart.ipynb)
 
+## Citation
+
+If you use SMX in your research, please cite:
+
+```bibtex
+@misc{ribeiro2026spectralmodelexplainerchemicallygrounded,
+      title={Spectral Model eXplainer: a chemically-grounded explainability framework for spectral-based machine learning models},
+      author={Jose Vinicius Ribeiro and Rafael Figueira Goncalves and Fabio Luiz Melquiades and Sylvio Barbon Junior},
+      year={2026},
+      eprint={2605.02684},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2605.02684},
+}
+```
+
 ## License
 
 This project is licensed under the MIT License. See the LICENSE file for details.
