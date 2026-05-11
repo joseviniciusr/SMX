@@ -8,7 +8,7 @@ version = "0.1.2"
 description = "A python library for spectral-zone-level explanations in machine learning models trained on spectral data"
 authors = [
     { name = "Ribeiro Jose Vinicius", email = "ribeirojosevinicius@gmail.com" },
-    { name = "Goncalves Rafael Figueira" email="capitao.rafa@gmail.com"},
+    { name = "Goncalves Rafael Figueira", email="capitao.rafa@gmail.com"},
     { name = "Barbon Junior Sylvio", email = "sylvio.barbonjunior@units.it" },
 ]
 readme = "README.md"
