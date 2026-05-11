@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="SMX_logo.png" alt="SMX logo" width="560">
+  <img src="SMX_final_logo.png" alt="SMX logo" width="560">
 </p>
-
-# SMX
 
 This is the official repository for the `spectral-model-explainer` (SMX) library, an eXplainable AI tool designed to provide explanations for Machine Learning (ML) models trained on spectral data (*e.g.*, XRF, GRS, Raman, and related modalities).
 
