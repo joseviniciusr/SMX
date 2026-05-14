@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 - --version 1.8.0
+
+      - name: Configure Poetry
+        run: |
+          poetry config virtualenvs.create false
+          poetry config pypi-token.pypi PYPI_API_TOKEN
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Extract version
+        id: version
+        run: echo "VERSION=$(poetry version --short)" >> $GITHUB_OUTPUT
+
+      - name: Build and publish to PyPI
+        run: poetry publish --build
+        env:
+          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_API_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body: "Release ${{ steps.version.outputs.VERSION }}"
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
