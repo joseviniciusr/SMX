@@ -8,14 +8,14 @@ version = "0.1.4"
 description = "A python library for spectral-zone-level explanations in machine learning models trained on spectral data"
 authors = [
     { name = "Ribeiro Jose Vinicius", email = "ribeirojosevinicius@gmail.com" },
-    { name = "Goncalves Rafael Figueira", email="capitao.rafa@gmail.com"},
+    { name = "Goncalves Rafael Figueira", email = "capitao.rafa@gmail.com" },
     { name = "Barbon Junior Sylvio", email = "sylvio.barbonjunior@units.it" },
 ]
 readme = "README.md"
 requires-python = ">=3.9"
+keywords = ["spectroscopy", "explainability", "machine-learning", "eXplainable-AI"]
 license = "MIT"
 license-files = ["LICENSE"]
-keywords = ["spectroscopy", "explainability", "machine-learning", "eXplainable-AI"]
 
 dependencies = [
     "numpy>=1.24",
