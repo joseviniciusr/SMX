@@ -2,20 +2,22 @@
 requires = ["poetry-core>=1.9.0"]
 build-backend = "poetry.core.masonry.api"
 
-[project]
+[tool.poetry]
 name = "spectral-model-explainer"
 version = "0.1.4"
 description = "A python library for spectral-zone-level explanations in machine learning models trained on spectral data"
 authors = [
-    { name = "Ribeiro Jose Vinicius", email = "ribeirojosevinicius@gmail.com" },
-    { name = "Goncalves Rafael Figueira", email = "capitao.rafa@gmail.com" },
-    { name = "Barbon Junior Sylvio", email = "sylvio.barbonjunior@units.it" },
+    "Ribeiro Jose Vinicius <ribeirojosevinicius@gmail.com>",
+    "Goncalves Rafael Figueira <capitao.rafa@gmail.com>",
+    "Barbon Junior Sylvio <sylvio.barbonjunior@units.it>",
 ]
 readme = "README.md"
 requires-python = ">=3.9"
 keywords = ["spectroscopy", "explainability", "machine-learning", "eXplainable-AI"]
 license = "MIT"
 license-files = ["LICENSE"]
+
+packages = [{ include = "smx" }]
 
 dependencies = [
     "numpy>=1.24",
@@ -24,7 +26,7 @@ dependencies = [
     "networkx>=3.0",
 ]
 
-[project.optional-dependencies]
+[tool.poetry.optional-dependencies]
 plotting = [
     "plotly>=5.0",
     "nbformat>=4.2",
@@ -34,9 +36,6 @@ dev = [
     "plotly>=5.0",
     "nbformat>=4.2",
 ]
-
-[tool.poetry]
-packages = [{ include = "smx" }]
 
 [project.urls]
 Homepage = "https://github.com/joseviniciusr/SMX"
