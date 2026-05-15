@@ -35,9 +35,9 @@ dev = [
     "nbformat>=4.2",
 ]
 
+[tool.poetry]
+packages = [{ include = "smx" }]
+
 [project.urls]
 Homepage = "https://github.com/joseviniciusr/SMX"
 Repository = "https://github.com/joseviniciusr/SMX"
-
-[tool.poetry]
-packages = [{ include = "smx" }]
