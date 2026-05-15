@@ -32,21 +32,25 @@ jobs:
 
       - name: Determine version
         run: |
-          VERSION=$(poetry version --short)
+          PREV_VERSION=$(poetry version --short)
+          VERSION="$PREV_VERSION"
+          BUMPED=false
           COMMIT_MSG=$(git log -1 --format=%s)
-          BUMP_MSG="chore: bump version to $VERSION"
 
           # If commit message already contains the bump, use current version
-          if echo "$COMMIT_MSG" | grep -q "bump version to $VERSION"; then
+          if echo "$COMMIT_MSG" | grep -q "bump version to $PREV_VERSION"; then
             echo "Determined by existing commit"
           else
             # No bump found — need to bump
             poetry version patch
             VERSION=$(poetry version --short)
+            BUMPED=true
             echo "Bumped to: $VERSION"
           fi
 
+          echo "PREV_VERSION=$PREV_VERSION" >> $GITHUB_OUTPUT
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "BUMPED=$BUMPED" >> $GITHUB_OUTPUT
 
           # Check if tag already exists
           if git tag | grep -q "^v$VERSION$"; then
@@ -58,7 +62,7 @@ jobs:
         id: version
 
       - name: Push version bump
-        if: steps.version.outputs.SKIP == 'false'
+        if: steps.version.outputs.SKIP == 'false' && steps.version.outputs.BUMPED == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -74,9 +78,24 @@ jobs:
 
       - name: Publish to PyPI
         if: steps.version.outputs.SKIP == 'false'
+        id: publish
         run: poetry publish --build
         env:
           POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_API_TOKEN }}
+
+      - name: Revert version bump on publish failure
+        if: failure() && steps.publish.outcome == 'failure' && steps.version.outputs.BUMPED == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git tag | grep -q "^v${{ steps.version.outputs.VERSION }}$"; then
+            git tag -d "v${{ steps.version.outputs.VERSION }}"
+            git push origin ":refs/tags/v${{ steps.version.outputs.VERSION }}"
+          fi
+
+          git revert --no-edit HEAD
+          git push
 
       - name: Create GitHub Release
         if: steps.version.outputs.SKIP == 'false'
