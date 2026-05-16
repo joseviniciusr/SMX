@@ -3,7 +3,7 @@
 
 import os
 import sys
-from importlib.metadata import PackageNotFoundError, version
+from importlib.metadata import PackageNotFoundError, version as package_version
 
 # If the package is not installed, point Sphinx at the source tree so autoapi
 # can discover the modules without needing an editable install.
@@ -17,9 +17,13 @@ author = "Jose Vinicius Ribeiro, Rafael Figueira Goncalves, Sylvio Barbon Junior
 copyright = "2026, Jose Vinicius Ribeiro, Rafael Figueira Goncalves, Sylvio Barbon Junior"
 
 try:
-    release = version("spectral-model-explainer")
+    release = package_version("spectral-model-explainer")
 except PackageNotFoundError:
     release = "0.0.0"
+
+version = release.split("+", 1)[0]
+if "." in version:
+    version = ".".join(version.split(".")[:2])
 
 # ---------------------------------------------------------------------------
 # General configuration

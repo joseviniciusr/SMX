@@ -28,13 +28,13 @@ class PredicateGenerator:
 
     Attributes (set after :meth:`fit`)
     ------------------------------------
-    predicates_df_ : pd.DataFrame
+    predicates_df\_ : pd.DataFrame
         One row per predicate. Columns: ``predicate``, ``rule``, ``zone``,
         ``thresholds``, ``operator``.
-    indicator_df_ : pd.DataFrame
+    indicator_df\_ : pd.DataFrame
         Binary indicator matrix (samples × predicates).  Columns are predicate
         rule strings; values are 1/0.
-    co_occurrence_matrix_ : pd.DataFrame
+    co_occurrence_matrix\_ : pd.DataFrame
         Pairwise co-occurrence matrix of predicates.
     """
 

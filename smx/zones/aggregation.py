@@ -44,10 +44,10 @@ class ZoneAggregator:
 
     Attributes (set after :meth:`fit`)
     ------------------------------------
-    pca_info_ : dict or None
+    pca_info\_ : dict or None
         ``{zone_name: {'pca_model', 'loadings', 'mean', 'variance_explained', 'columns'}}``
         Only populated when ``method='pca'``.
-    is_fitted_ : bool
+    is_fitted\_ : bool
         ``True`` after :meth:`fit` has been called.
     """
 

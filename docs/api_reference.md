@@ -4,5 +4,5 @@
 :maxdepth: 2
 :caption: API Reference
 
-api/index
+api/smx/index
 ```
