@@ -83,32 +83,32 @@ class SMX:
 
     Attributes (set after :meth:`fit`)
     ------------------------------------
-    lrc_natural_ : pd.DataFrame or None
+    lrc_natural\_ : pd.DataFrame or None
         LRC with natural-scale thresholds (available only when
         ``X_cal_natural`` is provided to :meth:`fit`). Columns:
         ``Node``, ``Local_Reaching_Centrality``, ``Zone``, ``Threshold``,
         ``Operator``, ``Threshold_Natural``.
-    lrc_summed_ : pd.DataFrame
+    lrc_summed\_ : pd.DataFrame
         Mean-aggregated LRC across seeds, preprocessed-scale thresholds.
-    lrc_summed_unique_ : pd.DataFrame
+    lrc_summed_unique\_ : pd.DataFrame
         Zone-deduplicated version of *lrc_summed_* (one row per zone).
-    zone_scores_ : pd.DataFrame
+    zone_scores\_ : pd.DataFrame
         PCA zone scores on the preprocessed calibration data.
-    predicates_df_ : pd.DataFrame
+    predicates_df\_ : pd.DataFrame
         Full predicate catalogue (generated from *zone_scores_*).
-    pca_info_ : dict
+    pca_info\_ : dict
         PCA info for the preprocessed zones.
-    pca_info_natural_ : dict or None
+    pca_info_natural\_ : dict or None
         PCA info for the natural (unpreprocessed) zones (only when
         ``X_cal_natural`` is provided to :meth:`fit`).
-    zones_natural_ : dict or None
+    zones_natural\_ : dict or None
         Raw spectral zone DataFrames from the unpreprocessed data (only when
         ``X_cal_natural`` is provided to :meth:`fit`).
-    graphs_by_seed_ : dict[int, nx.DiGraph]
+    graphs_by_seed\_ : dict[int, nx.DiGraph]
         Per-seed directed predicate graphs (useful for debugging).
-    valid_seeds_ : list[int]
+    valid_seeds\_ : list[int]
         Seeds that produced a non-empty graph (subset of ``seeds``).
-    faithfulness_ : dict
+    faithfulness\_ : dict
         Progressive top-k masking evaluation summary produced by
         :meth:`evaluate_faithfulness`.
     """

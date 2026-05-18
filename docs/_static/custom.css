@@ -1,0 +1,76 @@
+:root {
+  --smx-accent: #b44a2f;
+  --smx-accent-dark: #6a2f22;
+  --smx-hero-bg: linear-gradient(120deg, #fff6ef 0%, #eef3f9 100%);
+  --smx-hero-border: #ead9cf;
+}
+
+.smx-hero {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  padding: 2.5rem 2rem;
+  border: 1px solid var(--smx-hero-border);
+  border-radius: 18px;
+  background: var(--smx-hero-bg);
+  align-items: center;
+  margin: 1.5rem 0 2.5rem 0;
+}
+
+.smx-hero-text {
+  flex: 1 1 320px;
+}
+
+.smx-hero-logo {
+  flex: 0 1 320px;
+  display: flex;
+  justify-content: center;
+}
+
+.smx-hero-logo img {
+  max-width: 320px;
+  width: 100%;
+  height: auto;
+}
+
+.smx-kicker {
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  color: var(--smx-accent-dark);
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+
+.smx-hero-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.smx-button {
+  display: inline-block;
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  background: var(--smx-accent);
+  color: #ffffff !important;
+  text-decoration: none !important;
+  font-weight: 600;
+  border: 1px solid var(--smx-accent);
+}
+
+.smx-button:hover {
+  background: #a03f2a;
+  border-color: #a03f2a;
+}
+
+.smx-button-outline {
+  background: transparent;
+  color: var(--smx-accent-dark) !important;
+  border: 1px solid var(--smx-accent-dark);
+}
+
+.smx-button-outline:hover {
+  background: #f3e5de;
+}

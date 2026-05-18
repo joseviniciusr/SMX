@@ -142,22 +142,24 @@ def generate_synthetic_spectral_data(
 
         - ``'name'`` (str): class label (e.g. ``'A'``, ``'B'``, ``'Soil'``).
         - ``'n_samples'`` (int): number of samples to generate.
-                - ``'peaks'`` (list): peak definitions on the spectral axis.
+        - ``'peaks'`` (list): peak definitions on the spectral axis.
 
-                    Supported formats:
+          Supported formats::
 
-                    1) ``[250, 550, 700]``
-                         - Uses class-level amplitude/width defaults for all peaks.
+              [250, 550, 700]
 
-                    2) ``[
-                                 {'center': 250, 'amplitude_mean': 0.9, 'width_mean': 10},
-                                 {'center': 550, 'amplitude_mean': 1.3, 'width_mean': 18},
-                                 {'center': 700, 'amplitude_mean': 0.7, 'width_mean': 25},
-                         ]``
-                         - Allows per-peak amplitude/width customisation.
-                         - Optional per-peak keys:
-                             ``amplitude_mean``, ``amplitude_std``, ``width_mean``, ``width_std``.
-                         - Missing per-peak keys fallback to class-level defaults below.
+          or::
+
+              [
+                  {'center': 250, 'amplitude_mean': 0.9, 'width_mean': 10},
+                  {'center': 550, 'amplitude_mean': 1.3, 'width_mean': 18},
+                  {'center': 700, 'amplitude_mean': 0.7, 'width_mean': 25},
+              ]
+
+          The second form allows per-peak amplitude/width customisation.
+          Optional per-peak keys: ``amplitude_mean``, ``amplitude_std``,
+          ``width_mean``, ``width_std``. Missing keys fallback to class-level
+          defaults below.
         - ``'amplitude_mean'`` (float, optional, default ``1.0``): mean peak amplitude.
         - ``'amplitude_std'`` (float, optional, default ``0.1``): std dev of amplitude.
         - ``'width_mean'`` (float, optional, default ``15.0``): mean peak width (σ).
