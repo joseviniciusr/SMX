@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "spectral-model-explainer"
-version = "0.1.7"
+version = "0.1.8"
 description = "A python library for spectral-zone-level explanations in machine learning models trained on spectral data"
 authors = [
     "Ribeiro Jose Vinicius <ribeirojosevinicius@gmail.com>",
