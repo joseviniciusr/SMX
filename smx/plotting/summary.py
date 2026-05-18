@@ -803,8 +803,8 @@ def plot_faithfulness_curve(
         summary_lines.append(f"AUC: {float(auc):.4f}")
     if auc_normalized is not None:
         summary_lines.append(f"Normalized AUC: {float(auc_normalized):.4f}")
-    if show_percentile and percentile is not None:
-        summary_lines.append(f"Percentile vs random: {float(percentile):.1f}")
+    if percentile is not None:
+        summary_lines.append(f"Percentile: {float(percentile):.1f}%")
     if metric is not None:
         summary_lines.append(f"Metric: {metric}")
 
