@@ -1,6 +1,6 @@
 from smx.plotting.theme import DEFAULT_THEME, SMXTheme
 from smx.plotting.threshold import plot_threshold_spectrum
-from smx.plotting.zones import plot_zone_ranking_over_spectrum
+from smx.plotting.zones import plot_zone_ranking_over_spectrum, plot_spectrum_with_zones
 from smx.plotting.summary import (
     plot_lrc_bar,
     plot_predicate_heatmap,
@@ -14,6 +14,7 @@ __all__ = [
     "SMXTheme",
     "plot_threshold_spectrum",
     "plot_zone_ranking_over_spectrum",
+    "plot_spectrum_with_zones",
     "plot_lrc_bar",
     "plot_predicate_heatmap",
     "plot_zone_scores",

@@ -120,6 +120,274 @@ def _build_reference_spectrum(
     )
 
 
+def plot_spectrum_with_zones(
+    spectrum: Union[pd.Series, pd.DataFrame, np.ndarray],
+    spectral_cuts: Iterable,
+    identified_peaks: Optional[Iterable[int]] = None,
+    identified_minima: Optional[Iterable[int]] = None,
+    output_path: Optional[Union[str, Path]] = None,
+    *,
+    title: Optional[str] = None,
+    zone_color: str = "rgb(173, 216, 230)",
+    background_color: str = "rgb(0, 34, 75)",
+    width: Optional[int] = 1200,
+    height: Optional[int] = 500,
+    theme: Optional[SMXTheme] = None,
+    return_fig: bool = False,
+) -> Union[None, "go.Figure", tuple["go.Figure", pd.DataFrame]]:
+    """Plot a spectrum with spectral zones highlighted in the background.
+
+    Parameters
+    ----------
+    spectrum : pandas.Series, pandas.DataFrame, or numpy.ndarray
+        Spectrum values. If a DataFrame is provided, the first row is used.
+    spectral_cuts : iterable
+        Zone definitions as ``(label, start, end)`` tuples or dicts.
+    identified_peaks : iterable of int, optional
+        Indices of local maxima to mark on the plot.
+    output_path : str or Path, optional
+        Destination file for the plot (HTML or static image). If omitted,
+        the figure is displayed inline.
+    title : str, optional
+        Plot title.
+    zone_color : str, default "rgb(173, 216, 230)"
+        Light blue fill color for spectral zones.
+    background_color : str, default "rgb(211, 211, 211)"
+        Light gray fill color for background zones.
+    width : int, default 1200
+        Figure width in pixels for static image export.
+    height : int, default 500
+        Figure height in pixels for static image export.
+    theme : SMXTheme, optional
+        Visual theme controlling fonts and line styles.
+    return_fig : bool, default False
+        When True, return the figure (and a normalized cuts DataFrame).
+
+    Returns
+    -------
+    None or plotly.graph_objects.Figure or (Figure, DataFrame)
+        Returns ``None`` when *return_fig* is False.
+    """
+    try:
+        import plotly.graph_objects as go
+    except ImportError as exc:
+        raise ImportError(
+            "plotly is required for plot_spectrum_with_zones. "
+            "Install it with: pip install plotly"
+        ) from exc
+
+    theme = theme or DEFAULT_THEME
+
+    if isinstance(spectrum, pd.DataFrame):
+        if spectrum.empty:
+            raise ValueError("spectrum DataFrame is empty.")
+        spectrum_series = spectrum.iloc[0, :]
+    elif isinstance(spectrum, pd.Series):
+        spectrum_series = spectrum
+    else:
+        spectrum_series = pd.Series(np.asarray(spectrum, dtype=float))
+
+    if spectrum_series.empty:
+        raise ValueError("spectrum is empty.")
+
+    raw_index = spectrum_series.index.astype(str)
+    x_numeric = pd.to_numeric(raw_index, errors="coerce")
+
+    if x_numeric.isna().any():
+        x_values = np.arange(len(spectrum_series), dtype=float)
+        label_map = {str(i): float(i) for i in range(len(spectrum_series))}
+    else:
+        x_values = x_numeric.to_numpy(dtype=float)
+        label_map = {str(label): float(val) for label, val in zip(raw_index, x_values)}
+
+    y_values = spectrum_series.to_numpy(dtype=float)
+
+    def _to_x(value: Union[int, float, str]) -> float:
+        """Convert a cut boundary to a numeric x position."""
+        try:
+            return float(value)
+        except Exception:
+            return float(label_map.get(str(value), 0.0))
+
+    def _rgba(rgb: str, opacity: float) -> str:
+        """Convert an rgb string into rgba with the desired opacity."""
+        rgb_vals = [int(v) for v in rgb.strip().replace("rgb(", "").replace(")", "").split(",")]
+        return f"rgba({rgb_vals[0]}, {rgb_vals[1]}, {rgb_vals[2]}, {opacity})"
+
+    cut_rows = []
+    for cut in spectral_cuts:
+        if isinstance(cut, dict):
+            label = str(cut.get("name", "zone"))
+            start = cut.get("start")
+            end = cut.get("end")
+        elif len(cut) == 3:
+            label, start, end = cut
+            label = str(label)
+        elif len(cut) == 2:
+            start, end = cut
+            label = f"{start}-{end}"
+        else:
+            raise ValueError("Each cut must have 2 or 3 elements, or dict form.")
+
+        x_start = _to_x(start)
+        x_end = _to_x(end)
+        if x_start > x_end:
+            x_start, x_end = x_end, x_start
+        cut_rows.append({"label": label, "start": x_start, "end": x_end})
+
+    cuts_df = pd.DataFrame(cut_rows).sort_values("start").reset_index(drop=True)
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=x_values,
+            y=y_values,
+            mode="lines",
+            line=dict(
+                color=theme.reference_line_color,
+                width=theme.reference_line_width,
+                dash="solid",
+            ),
+            name="Spectrum",
+        )
+    )
+
+    # Fixed 0.6 opacity for zone/background shaded regions (independent of theme).
+    _ZONE_OPACITY = 0.6
+    zone_rgba = _rgba(zone_color, _ZONE_OPACITY)
+    background_rgba = _rgba(background_color, _ZONE_OPACITY)
+
+    for _, row in cuts_df.iterrows():
+        label = row["label"]
+        start = float(row["start"])
+        end = float(row["end"])
+        is_background = "background" in label.lower()
+        fillcolor = background_rgba if is_background else zone_rgba
+
+        fig.add_vrect(
+            x0=start,
+            x1=end,
+            fillcolor=fillcolor,
+            opacity=_ZONE_OPACITY,
+            line_width=0,
+            layer="below",
+        )
+        fig.add_vline(
+            x=start,
+            line=dict(
+                color='black',
+                width=theme.zone_boundary_width,
+                dash=theme.zone_boundary_dash,
+            ),
+        )
+
+    # Add legend entries for zone and background shading.
+    fig.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="markers",
+            marker=dict(size=14, color=zone_rgba, symbol="square"),
+            name="zones",
+            showlegend=True,
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="markers",
+            marker=dict(size=14, color=background_rgba, symbol="square"),
+            name="backgrounds",
+            showlegend=True,
+        )
+    )
+
+    if identified_peaks is not None:
+        fig.add_vline(
+            x=float(cuts_df["end"].iloc[-1]),
+            line=dict(
+                color=theme.zone_boundary_color,
+                width=theme.zone_boundary_width,
+                dash=theme.zone_boundary_dash,
+            ),
+        )
+
+    if identified_peaks is not None:
+        peaks_idx = np.asarray(list(identified_peaks), dtype=int)
+        peaks_idx = peaks_idx[(peaks_idx >= 0) & (peaks_idx < len(y_values))]
+        if peaks_idx.size > 0:
+            fig.add_trace(
+                go.Scatter(
+                    x=x_values[peaks_idx],
+                    y=y_values[peaks_idx],
+                    mode="markers",
+                    marker=dict(size=8, color="#e41a1c", symbol="circle"),
+                    name="identified peaks",
+                )
+            )
+
+    if identified_minima is not None:
+        mins_idx = np.asarray(list(identified_minima), dtype=int)
+        mins_idx = mins_idx[(mins_idx >= 0) & (mins_idx < len(y_values))]
+        if mins_idx.size > 0:
+            fig.add_trace(
+                go.Scatter(
+                    x=x_values[mins_idx],
+                    y=y_values[mins_idx],
+                    mode="markers",
+                    marker=dict(size=8, color="#4daf4a", symbol="triangle-up"),
+                    name="identified minima",
+                )
+            )
+
+    y_min = float(np.nanmin(y_values))
+    y_max = float(np.nanmax(y_values))
+    y_span = y_max - y_min if y_max > y_min else 1.0
+
+    fig.update_layout(
+        **theme.plotly_layout(
+            title=title or "Spectrum with spectral zones",
+            xaxis_title="Spectral variables",
+            yaxis_title="Intensity",
+            margin=dict(t=110, r=60, b=90, l=60),
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=-0.16,
+                xanchor="center",
+                x=0.5,
+            ),
+        )
+    )
+    fig.update_yaxes(range=[y_min - 0.05 * y_span, y_max + 0.12 * y_span])
+
+    if output_path is not None:
+        output_path = Path(output_path)
+        suffix = output_path.suffix.lower()
+        if suffix == ".html":
+            fig.write_html(str(output_path))
+        elif suffix in {".png", ".svg", ".pdf", ".jpg", ".jpeg", ".webp"}:
+            try:
+                fig.write_image(str(output_path), width=width, height=height)
+            except ValueError as exc:
+                raise ImportError(
+                    "Static image export requires kaleido. "
+                    "Install it with: pip install kaleido"
+                ) from exc
+        else:
+            raise ValueError(
+                f"Unsupported output format '{suffix}'. "
+                "Use '.html' for interactive or '.png'/'svg'/'pdf' for static image."
+            )
+    else:
+        fig.show()
+
+    if return_fig:
+        return fig, cuts_df
+    return None
+
+
 _DEFAULT_CLASS_COLORS = [
     "#e41a1c", "#377eb8", "#4daf4a", "#984ea3",
     "#ff7f00", "#a65628", "#f781bf", "#999999",
