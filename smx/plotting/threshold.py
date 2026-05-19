@@ -24,12 +24,13 @@ def plot_threshold_spectrum(
     spectral_zones_original: Dict[str, pd.DataFrame],
     pca_info_dict_original: Dict,
     y_labels: pd.Series,
-    output_path: Union[str, Path],
+    output_path: Optional[Union[str, Path]],
     class_colors: Optional[Dict[str, str]] = None,
     theme: Optional[SMXTheme] = None,
     width: Optional[int] = 900,
     height: Optional[int] = 450,
-) -> pd.Series:
+    return_fig: bool = True,
+) -> Union[pd.Series, tuple[pd.Series, "go.Figure"]]:
     """Reconstruct a threshold to spectrum space and save an HTML plot.
 
     The plot overlays the reconstructed multivariate threshold (in red) on
@@ -50,13 +51,16 @@ def plot_threshold_spectrum(
         the natural (unpreprocessed) data.
     y_labels : pd.Series
         Class labels aligned with the calibration data rows.
-    output_path : str or Path
+    output_path : str or Path, optional
         Destination path for the output ``.html`` file.
+        If ``None``, no file is written.
     class_colors : dict, optional
         Mapping of class label → colour string.  Explicit values override the
         theme.  Defaults to the theme's ``class_colors``.
     theme : SMXTheme, optional
         Visual theme.  Defaults to :data:`smx.plotting.theme.DEFAULT_THEME`.
+    return_fig : bool, default True
+        If ``True``, return ``(threshold_spectrum, figure)`` for inline display.
 
     Returns
     -------
@@ -138,22 +142,26 @@ def plot_threshold_spectrum(
             legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
         )
     )
-    output_path = Path(output_path)
-    suffix = output_path.suffix.lower()
-    if suffix == ".html":
-        fig.write_html(str(output_path))
-    elif suffix in {".png", ".svg", ".pdf", ".jpg", ".jpeg", ".webp"}:
-        try:
-            fig.write_image(str(output_path), width=width, height=height)
-        except ValueError as exc:
-            raise ImportError(
-                "Static image export requires kaleido. "
-                "Install it with: pip install kaleido"
-            ) from exc
-    else:
-        raise ValueError(
-            f"Unsupported output format '{suffix}'. "
-            "Use '.html' for interactive or '.png'/'.svg'/'.pdf' for static image."
-        )
+    if output_path is not None:
+        output_path = Path(output_path)
+        suffix = output_path.suffix.lower()
+        if suffix == ".html":
+            fig.write_html(str(output_path))
+        elif suffix in {".png", ".svg", ".pdf", ".jpg", ".jpeg", ".webp"}:
+            try:
+                fig.write_image(str(output_path), width=width, height=height)
+            except ValueError as exc:
+                raise ImportError(
+                    "Static image export requires kaleido. "
+                    "Install it with: pip install kaleido"
+                ) from exc
+        else:
+            raise ValueError(
+                f"Unsupported output format '{suffix}'. "
+                "Use '.html' for interactive or '.png'/'.svg'/'.pdf' for static image."
+            )
 
+    fig.show()
+    if return_fig:
+        return threshold_spectrum, fig
     return threshold_spectrum

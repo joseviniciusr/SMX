@@ -133,7 +133,7 @@ def plot_spectrum_with_zones(
     width: Optional[int] = 1200,
     height: Optional[int] = 500,
     theme: Optional[SMXTheme] = None,
-    return_fig: bool = False,
+    return_fig: bool = True,
 ) -> Union[None, "go.Figure", tuple["go.Figure", pd.DataFrame]]:
     """Plot a spectrum with spectral zones highlighted in the background.
 
@@ -160,7 +160,7 @@ def plot_spectrum_with_zones(
         Figure height in pixels for static image export.
     theme : SMXTheme, optional
         Visual theme controlling fonts and line styles.
-    return_fig : bool, default False
+    return_fig : bool, default True
         When True, return the figure (and a normalized cuts DataFrame).
 
     Returns
@@ -380,8 +380,8 @@ def plot_spectrum_with_zones(
                 f"Unsupported output format '{suffix}'. "
                 "Use '.html' for interactive or '.png'/'svg'/'pdf' for static image."
             )
-    else:
-        fig.show()
+
+    fig.show()
 
     if return_fig:
         return fig, cuts_df
@@ -410,7 +410,7 @@ def plot_zone_ranking_over_spectrum(
     width: Optional[int] = 1200,
     height: Optional[int] = 500,
     theme: Optional[SMXTheme] = None,
-    return_fig: bool = False,
+    return_fig: bool = True,
 ) -> Union[pd.DataFrame, tuple[pd.DataFrame, "go.Figure"]]:
     """Save a plot showing ranked zones overlaid on a spectrum.
 
@@ -460,7 +460,7 @@ def plot_zone_ranking_over_spectrum(
         template.  Defaults to :data:`smx.plotting.theme.DEFAULT_THEME`.
         Explicit style parameters (``colorscale``, ``class_colors``) take
         precedence over the theme.
-    return_fig : bool, default False
+    return_fig : bool, default True
         If ``True``, return ``(ranking_df, figure)`` for inline display.
 
     Notes
@@ -716,6 +716,8 @@ def plot_zone_ranking_over_spectrum(
                 f"Unsupported output format '{suffix}'. "
                 "Use '.html' for interactive or '.png'/'.svg'/'.pdf' for static image."
             )
+
+    fig.show()
 
     if return_fig:
         return ranking_df, fig

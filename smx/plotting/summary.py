@@ -66,14 +66,15 @@ def _require_plotly():
 
 def plot_lrc_bar(
     zone_ranking_df: pd.DataFrame,
-    output_path: Union[str, Path],
+    output_path: Optional[Union[str, Path]],
     *,
     title: Optional[str] = None,
     colorscale: Optional[str] = None,
     theme: Optional[SMXTheme] = None,
     width: int = 800,
     height: int = 500,
-) -> pd.DataFrame:
+    return_fig: bool = True,
+) -> Union[pd.DataFrame, tuple[pd.DataFrame, "go.Figure"]]:
     """Horizontal bar chart of LRC scores per zone.
 
     Each bar represents a spectral zone and is colored according to the same
@@ -85,8 +86,10 @@ def plot_lrc_bar(
     zone_ranking_df : pd.DataFrame
         LRC table (``Zone`` / ``Local_Reaching_Centrality`` columns) or a
         pre-normalized ``zone`` / ``score`` / ``rank`` DataFrame.
-    output_path : str or Path
-        Destination file.  Extension determines format (``.html`` or image).
+    output_path : str or Path, optional
+        Destination file. If ``None``, no file is written.
+        return_fig : bool, default True
+            If ``True``, return ``(ranking_df, figure)`` for inline display.
     title : str, optional
         Figure title.
     colorscale : str, optional
@@ -150,6 +153,9 @@ def plot_lrc_bar(
     )
 
     _write_figure(fig, output_path, width, height)
+    fig.show()
+    if return_fig:
+        return ranking_df, fig
     return ranking_df
 
 
@@ -190,7 +196,7 @@ def plot_predicate_heatmap(
         Figure width (static export).
     height : int, default 550
         Figure height (static export).
-    return_fig : bool, default False
+    return_fig : bool, default True
         If ``True``, return ``(pivot_df, figure)`` for inline display.
 
     Returns
@@ -313,6 +319,7 @@ def plot_predicate_heatmap(
     )
 
     _write_figure(fig, output_path, width, height)
+    fig.show()
     if return_fig:
         return pivot, fig
     return pivot
@@ -331,7 +338,7 @@ def plot_zone_scores(
     theme: Optional[SMXTheme] = None,
     width: int = 1200,
     height: int = 580,
-    return_fig: bool = False,
+    return_fig: bool = True,
 ) -> Union[pd.DataFrame, tuple[pd.DataFrame, "go.Figure"]]:
     """Split-violin plot of PC1 scores per spectral zone, split by class.
 
@@ -359,7 +366,7 @@ def plot_zone_scores(
         Figure width (static export).
     height : int, default 580
         Figure height (static export).
-    return_fig : bool, default False
+    return_fig : bool, default True
         If ``True``, return ``(zone_scores_df, figure)`` for inline display.
 
     Returns
@@ -424,6 +431,7 @@ def plot_zone_scores(
     )
 
     _write_figure(fig, output_path, width, height)
+    fig.show()
     if return_fig:
         return zone_scores_df, fig
     return zone_scores_df
@@ -444,7 +452,7 @@ def plot_all_thresholds_overlay(
     theme: Optional[SMXTheme] = None,
     width: int = 1200,
     height: int = 500,
-    return_fig: bool = False,
+    return_fig: bool = True,
 ) -> Union[pd.DataFrame, tuple[pd.DataFrame, "go.Figure"]]:
     """Full-spectrum overlay of the top-ranked threshold per zone.
 
@@ -478,7 +486,7 @@ def plot_all_thresholds_overlay(
         Figure width (static export).
     height : int, default 500
         Figure height (static export).
-    return_fig : bool, default False
+    return_fig : bool, default True
         If ``True``, return ``(top_thresholds_df, figure)`` for inline display.
 
     Returns
@@ -628,6 +636,7 @@ def plot_all_thresholds_overlay(
     )
 
     _write_figure(fig, output_path, width, height)
+    fig.show()
     if return_fig:
         return top_per_zone, fig
     return top_per_zone
@@ -644,7 +653,7 @@ def plot_faithfulness_curve(
     width: int = 1100,
     height: int = 560,
     show_percentile: bool = False,
-    return_fig: bool = False,
+    return_fig: bool = True,
 ) -> Union[pd.DataFrame, tuple[pd.DataFrame, "go.Figure"]]:
     """Plot the progressive masking faithfulness curve and its AUC.
 
@@ -667,7 +676,7 @@ def plot_faithfulness_curve(
     show_percentile : bool, default False
         Whether to include the random-baseline percentile in the summary box.
         The value remains available in ``faithfulness_result`` either way.
-    return_fig : bool, default False
+    return_fig : bool, default True
         If ``True``, return ``(curve_df, figure)`` for inline display.
 
     Returns
@@ -872,6 +881,7 @@ def plot_faithfulness_curve(
     )
 
     _write_figure(fig, output_path, width, height)
+    fig.show()
     if return_fig:
         return curve_df, fig
     return curve_df
