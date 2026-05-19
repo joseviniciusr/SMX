@@ -64,15 +64,15 @@ jobs:
           fi
         id: version
 
-      - name: Push version bump
+      - name: Create version bump branch
         if: steps.version.outputs.SKIP == 'false' && steps.version.outputs.BUMPED == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add pyproject.toml
           git commit -m "chore: bump version to ${{ steps.version.outputs.VERSION }}"
-          git pull --rebase origin main
-          git push
+          git checkout -b "chore/bump-version-to-${{ steps.version.outputs.VERSION }}"
+          git push origin "chore/bump-version-to-${{ steps.version.outputs.VERSION }}"
 
       - name: Create tag
         if: steps.version.outputs.SKIP == 'false'
