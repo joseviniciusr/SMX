@@ -350,11 +350,11 @@ def plot_spectrum_with_zones(
             title=title or "Spectrum with spectral zones",
             xaxis_title="Spectral variables",
             yaxis_title="Intensity",
-            margin=dict(t=110, r=60, b=90, l=60),
+            margin=dict(t=80, r=60, b=90, l=60),
             legend=dict(
                 orientation="h",
                 yanchor="top",
-                y=-0.16,
+                y=1.12,
                 xanchor="center",
                 x=0.5,
             ),
