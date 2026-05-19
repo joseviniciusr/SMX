@@ -46,6 +46,41 @@ Important behavior:
 
 This flexibility enables both physically meaningful elemental regions and composite regions such as aggregated background segments.
 
+### Manual Zone Detection with `building_spectral_zones`
+
+In addition to manually defining spectral zones via the `cuts` argument, SMX provides `building_spectral_zones`, a convenience function that automatically detects spectral zones from a single reference spectrum. This is particularly useful when you want to define zones based on the actual peaks and valleys present in your data, rather than predefined boundaries. This function is based on local minima and maxima detection via `scipy.signal.argrelmin` and `argrelmax`, with optional Savitzky-Golay smoothing to enhance robustness against noise. The detected zones are then formatted in the same way as manually defined cuts, allowing seamless integration into the SMX pipeline.
+
+Accordingly, the usage of `building_spectral_zones` is straightforward and can be directly applied to a representative spectrum or the mean spectrum across samples to identify zones and background segments. The main parameters control the sensitivity of peak detection are:
+
+- **`min_window_length`**: Minimum length of spectral windows considered for minima extraction, which also controls the minimum width of the resulting zones.
+- **`prominence`**: Minimum difference in intensity between a peak and its surrounding baseline for it to be considered a valid peak. Higher values make detection more robust to noise but may miss subtle features.
+- Optionally, Savitzky-Golay smoothing can be applied before peak detection (`svg_smooth=True`) to further improve robustness in noisy spectra.
+
+As an example:
+
+```python
+from smx.zones import building_spectral_zones
+
+# spectrum: DataFrame, Series, or array with spectral data
+spectral_cuts = building_spectral_zones(
+    spectrum,                # Reference spectrum for zone detection
+    min_window_length=7,      # Window for local minima detection (order parameter for argrelmin)
+    prominence=0.3,          # Minimum prominence for peak detection
+    svg_smooth=False,        # Apply Savitzky-Golay smoothing before detection
+    svg_window_length=7,      # SG window length (if svg_smooth=True)
+    svg_polyorder=3,         # SG polynomial order (if svg_smooth=True)
+    svg_deriv=0,             # SG derivative order (0=smoothing only, 1=first derivative, etc.)
+    ploting=True,            # Generate visualization with detected zones
+    output_path="detected_zones.png",  # Save plot to file
+)
+```
+
+**Returns:** A list of spectral cuts in the format `[(name, start, end), ...]`, where zones are automatically labeled as `zone1`, `zone2`, ... and background segments as `background1`, `background2`, ...
+
+The function automatically identifies local minima (valleys) and maxima (peaks) in the spectrum, then constructs zones bounded by consecutive minima, alternating between spectral features (zones) and inter-feature regions (background).
+
+![Detected spectral zones](https://raw.githubusercontent.com/joseviniciusr/SMX/6961538/assets/detected_zones.png)
+
 ## Predicate Construction from Zone Scores
 
 After extraction, each zone is transformed into one scalar score per sample (default strategy: PC1 score via `ZoneAggregator(method="pca")`). These zone-level summaries are the basis for predicate generation.
@@ -126,15 +161,11 @@ import pandas as pd
 from sklearn.svm import SVC
 from smx import SMX
 
-# X_cal_prep: preprocessed calibration spectra (DataFrame)
-# X_cal_natural: original calibration spectra before preprocessing (DataFrame)
-# y_cal_labels: class labels for calibration samples (Series)
+X_cal_prep # preprocessed calibration spectra (DataFrame)
+X_cal_natural # original calibration spectra before preprocessing (DataFrame)
+y_cal_labels # class labels for calibration samples (Series)
 
-spectral_cuts = [
-("F1", 1.0, 100.0),
-("background", 100.0, 200.0, "background_group"),
-("F2", 200.0, 300.0),
-]
+spectral_cuts = [...]  # Define or extract spectral zones (see building_spectral_zones)
 
 model = SVC(kernel="rbf", probability=True, random_state=42)
 model.fit(X_cal_prep, y_cal_labels)
@@ -182,19 +213,19 @@ for consistent styling and support both `.html` (interactive) and
   <tr>
     <td align="center" width="33%">
       <a href="smx/plotting/gallery.md#plot_zone_ranking_over_spectrum">
-        <img src="assets/zone_ranking_over_spectrum.png" alt="Zone ranking over spectrum"><br>
+        <img src="https://raw.githubusercontent.com/joseviniciusr/SMX/6961538/assets/zone_ranking_over_spectrum.png" alt="Zone ranking over spectrum"><br>
         <b>Zone Ranking</b>
       </a>
     </td>
     <td align="center" width="33%">
       <a href="smx/plotting/gallery.md#plot_lrc_bar">
-        <img src="assets/lrc_bar.png" alt="Zone importance"><br>
+        <img src="https://raw.githubusercontent.com/joseviniciusr/SMX/6961538/assets/lrc_bar.png" alt="Zone importance"><br>
         <b>Zone Importance</b>
       </a>
     </td>
     <td align="center" width="33%">
       <a href="smx/plotting/gallery.md#plot_predicate_heatmap">
-        <img src="assets/predicate_heatmap.png" alt="Predicate heatmap"><br>
+        <img src="https://raw.githubusercontent.com/joseviniciusr/SMX/6961538/assets/predicate_heatmap.png" alt="Predicate heatmap"><br>
         <b>Predicate Heatmap</b>
       </a>
     </td>
@@ -202,19 +233,19 @@ for consistent styling and support both `.html` (interactive) and
   <tr>
     <td align="center" width="33%">
       <a href="smx/plotting/gallery.md#plot_threshold_spectrum">
-        <img src="assets/threshold_spectrum.png" alt="Threshold spectrum"><br>
+        <img src="https://raw.githubusercontent.com/joseviniciusr/SMX/6961538/assets/threshold_spectrum.png" alt="Threshold spectrum"><br>
         <b>Threshold Spectrum</b>
       </a>
     </td>
     <td align="center" width="33%">
       <a href="smx/plotting/gallery.md#plot_all_thresholds_overlay">
-        <img src="assets/all_thresholds_overlay.png" alt="All-zone threshold overlay"><br>
+        <img src="https://raw.githubusercontent.com/joseviniciusr/SMX/6961538/assets/all_thresholds_overlay.png" alt="All-zone threshold overlay"><br>
         <b>All-Zone Threshold Overlay</b>
       </a>
     </td>
     <td align="center" width="33%">
       <a href="smx/plotting/gallery.md#plot_zone_scores">
-        <img src="assets/zone_scores.png" alt="Zone higher variance score"><br>
+        <img src="https://raw.githubusercontent.com/joseviniciusr/SMX/6961538/assets/zone_scores.png" alt="Zone higher variance score"><br>
         <b>Zone Higher Variance Score</b>
       </a>
     </td>
@@ -282,7 +313,7 @@ For a complete, executable walkthrough with synthetic data and visualization out
 If you use SMX in your research, please cite:
 
 ```bibtex
-@misc{ribeiro2026spectralmodelexplainerchemicallygrounded,
+@misc{ribeiro2026spectralmodelexplainer,
       title={Spectral Model eXplainer: a chemically-grounded explainability framework for spectral-based machine learning models},
       author={Jose Vinicius Ribeiro and Rafael Figueira Goncalves and Fabio Luiz Melquiades and Sylvio Barbon Junior},
       year={2026},
