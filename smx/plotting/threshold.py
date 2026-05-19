@@ -29,13 +29,14 @@ def plot_threshold_spectrum(
     theme: Optional[SMXTheme] = None,
     width: Optional[int] = 900,
     height: Optional[int] = 450,
-    return_fig: bool = True,
-) -> Union[pd.Series, tuple[pd.Series, "go.Figure"]]:
+    return_df: bool = False,
+) -> Union[None, pd.Series]:
     """Reconstruct a threshold to spectrum space and save an HTML plot.
 
     The plot overlays the reconstructed multivariate threshold (in red) on
     top of the individual sample spectra for the chosen spectral zone,
-    coloured by class label.
+    coloured by class label. The figure is always displayed; set *return_df=True*
+    to return the threshold spectrum Series.
 
     Parameters
     ----------
@@ -59,13 +60,8 @@ def plot_threshold_spectrum(
         theme.  Defaults to the theme's ``class_colors``.
     theme : SMXTheme, optional
         Visual theme.  Defaults to :data:`smx.plotting.theme.DEFAULT_THEME`.
-    return_fig : bool, default True
-        If ``True``, return ``(threshold_spectrum, figure)`` for inline display.
-
-    Returns
-    -------
-    pd.Series
-        Reconstructed threshold spectrum.
+    return_df : bool, default False
+        If ``True``, return the threshold spectrum Series.
 
     Raises
     ------
@@ -136,7 +132,7 @@ def plot_threshold_spectrum(
     fig.update_layout(
         **theme.plotly_layout(
             title=f"Zone '{zone_name}' — Multivariate Threshold (Predicate: {node_natural})",
-            xaxis_title="Energy / Wavelength",
+            xaxis_title="ESpectral variables",
             yaxis_title="Intensity",
             showlegend=True,
             legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
@@ -162,6 +158,5 @@ def plot_threshold_spectrum(
             )
 
     fig.show()
-    if return_fig:
-        return threshold_spectrum, fig
-    return threshold_spectrum
+    if return_df:
+        return threshold_spectrum

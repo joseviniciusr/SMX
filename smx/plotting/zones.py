@@ -133,9 +133,12 @@ def plot_spectrum_with_zones(
     width: Optional[int] = 1200,
     height: Optional[int] = 500,
     theme: Optional[SMXTheme] = None,
-    return_fig: bool = True,
-) -> Union[None, "go.Figure", tuple["go.Figure", pd.DataFrame]]:
+    return_df: bool = False,
+) -> Union[None, pd.DataFrame]:
     """Plot a spectrum with spectral zones highlighted in the background.
+
+    The figure is always displayed; set *return_df=True* to return the
+    normalized cuts DataFrame.
 
     Parameters
     ----------
@@ -160,13 +163,13 @@ def plot_spectrum_with_zones(
         Figure height in pixels for static image export.
     theme : SMXTheme, optional
         Visual theme controlling fonts and line styles.
-    return_fig : bool, default True
-        When True, return the figure (and a normalized cuts DataFrame).
+    return_df : bool, default False
+        If ``True``, return the normalized cuts DataFrame.
 
     Returns
     -------
-    None or plotly.graph_objects.Figure or (Figure, DataFrame)
-        Returns ``None`` when *return_fig* is False.
+    pd.DataFrame or None
+        Normalized cuts DataFrame when *return_df* is True.
     """
     try:
         import plotly.graph_objects as go
@@ -382,10 +385,8 @@ def plot_spectrum_with_zones(
             )
 
     fig.show()
-
-    if return_fig:
-        return fig, cuts_df
-    return None
+    if return_df:
+        return cuts_df
 
 
 _DEFAULT_CLASS_COLORS = [
@@ -410,9 +411,12 @@ def plot_zone_ranking_over_spectrum(
     width: Optional[int] = 1200,
     height: Optional[int] = 500,
     theme: Optional[SMXTheme] = None,
-    return_fig: bool = True,
-) -> Union[pd.DataFrame, tuple[pd.DataFrame, "go.Figure"]]:
+    return_df: bool = False,
+) -> Union[None, pd.DataFrame]:
     """Save a plot showing ranked zones overlaid on a spectrum.
+
+    The figure is always displayed; set *return_df=True* to return the
+    normalized ranking DataFrame.
 
     The output format is inferred from *output_path*:
 
@@ -460,8 +464,13 @@ def plot_zone_ranking_over_spectrum(
         template.  Defaults to :data:`smx.plotting.theme.DEFAULT_THEME`.
         Explicit style parameters (``colorscale``, ``class_colors``) take
         precedence over the theme.
-    return_fig : bool, default True
-        If ``True``, return ``(ranking_df, figure)`` for inline display.
+    return_df : bool, default False
+        If ``True``, return the normalized ranking DataFrame.
+
+    Returns
+    -------
+    pd.DataFrame or None
+        Normalized ranking DataFrame when *return_df* is True.
 
     Notes
     -----
@@ -684,13 +693,13 @@ def plot_zone_ranking_over_spectrum(
     fig.update_layout(
         **theme.plotly_layout(
             title=title or "Zone ranking over spectrum",
-            xaxis_title="Energy / Wavelength",
+            xaxis_title="Spectral variables",
             yaxis_title="Intensity",
             margin=dict(t=110, r=100, b=90, l=60),
             legend=dict(
                 orientation="h",
                 yanchor="top",
-                y=-0.16,
+                y=-0.24,
                 xanchor="center",
                 x=0.5,
             ),
@@ -718,7 +727,5 @@ def plot_zone_ranking_over_spectrum(
             )
 
     fig.show()
-
-    if return_fig:
-        return ranking_df, fig
-    return ranking_df
+    if return_df:
+        return ranking_df

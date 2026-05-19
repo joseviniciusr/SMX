@@ -73,13 +73,14 @@ def plot_lrc_bar(
     theme: Optional[SMXTheme] = None,
     width: int = 800,
     height: int = 500,
-    return_fig: bool = True,
-) -> Union[pd.DataFrame, tuple[pd.DataFrame, "go.Figure"]]:
+    return_df: bool = False,
+) -> Union[None, pd.DataFrame]:
     """Horizontal bar chart of LRC scores per zone.
 
     Each bar represents a spectral zone and is colored according to the same
     LRC-score colorscale used in :func:`plot_zone_ranking_over_spectrum`,
-    making the two plots directly comparable.
+    making the two plots directly comparable. The figure is always displayed;
+    set *return_df=True* to return the normalized ranking DataFrame.
 
     Parameters
     ----------
@@ -88,8 +89,6 @@ def plot_lrc_bar(
         pre-normalized ``zone`` / ``score`` / ``rank`` DataFrame.
     output_path : str or Path, optional
         Destination file. If ``None``, no file is written.
-        return_fig : bool, default True
-            If ``True``, return ``(ranking_df, figure)`` for inline display.
     title : str, optional
         Figure title.
     colorscale : str, optional
@@ -100,11 +99,13 @@ def plot_lrc_bar(
         Figure width in pixels (static export only).
     height : int, default 500
         Figure height in pixels (static export only).
+    return_df : bool, default False
+        If ``True``, return the normalized ranking DataFrame.
 
     Returns
     -------
-    pd.DataFrame
-        Normalized ``zone / score / rank`` DataFrame used in the plot.
+    pd.DataFrame or None
+        Normalized ``zone / score / rank`` DataFrame when *return_df* is True.
     """
     go = _require_plotly()
     from plotly.colors import sample_colorscale
@@ -154,9 +155,8 @@ def plot_lrc_bar(
 
     _write_figure(fig, output_path, width, height)
     fig.show()
-    if return_fig:
-        return ranking_df, fig
-    return ranking_df
+    if return_df:
+        return ranking_df
 
 
 # ── 2. Predicate Heatmap ───────────────────────────────────────────────────────
@@ -170,14 +170,16 @@ def plot_predicate_heatmap(
     theme: Optional[SMXTheme] = None,
     width: int = 1000,
     height: int = 550,
-    return_fig: bool = True,
-) -> Union[pd.DataFrame, tuple[pd.DataFrame, "go.Figure"]]:
+    return_df: bool = False,
+) -> Union[None, pd.DataFrame]:
     """Heatmap of LRC scores across zones and predicate thresholds.
 
     Rows are spectral zones (sorted by maximum LRC, highest at top). Columns
     are predicates within each zone, grouped by operator (``≤`` then ``>``)
     and sorted by threshold rank within each group.  Cell color encodes LRC
     score on the same colorscale as the bar chart and zone-ranking plot.
+    The figure is always displayed; set *return_df=True* to return the pivot
+    DataFrame.
 
     Parameters
     ----------
@@ -196,13 +198,14 @@ def plot_predicate_heatmap(
         Figure width (static export).
     height : int, default 550
         Figure height (static export).
-    return_fig : bool, default True
-        If ``True``, return ``(pivot_df, figure)`` for inline display.
+    return_df : bool, default False
+        If ``True``, return the pivot DataFrame (zones × predicate labels).
 
     Returns
     -------
-    pd.DataFrame
-        Pivot DataFrame (zones × predicate labels → LRC score).
+    pd.DataFrame or None
+        Pivot DataFrame (zones × predicate labels → LRC score) when
+        *return_df* is True.
     """
     go = _require_plotly()
     theme = theme or DEFAULT_THEME
@@ -291,7 +294,7 @@ def plot_predicate_heatmap(
         )
         fig.add_annotation(
             x=(len(le_cols) - 1) / 2,
-            y=1.04,
+            y=1.1,
             xref="x",
             yref="paper",
             text="Operator  ≤",
@@ -300,7 +303,7 @@ def plot_predicate_heatmap(
         )
         fig.add_annotation(
             x=len(le_cols) + (len(gt_cols) - 1) / 2,
-            y=1.04,
+            y=1.1,
             xref="x",
             yref="paper",
             text="Operator  >",
@@ -320,9 +323,8 @@ def plot_predicate_heatmap(
 
     _write_figure(fig, output_path, width, height)
     fig.show()
-    if return_fig:
-        return pivot, fig
-    return pivot
+    if return_df:
+        return pivot
 
 
 # ── 3. Zone PC1 Score Violin ───────────────────────────────────────────────────
@@ -338,12 +340,14 @@ def plot_zone_scores(
     theme: Optional[SMXTheme] = None,
     width: int = 1200,
     height: int = 580,
-    return_fig: bool = True,
-) -> Union[pd.DataFrame, tuple[pd.DataFrame, "go.Figure"]]:
+    return_df: bool = False,
+) -> Union[None, pd.DataFrame]:
     """Split-violin plot of PC1 scores per spectral zone, split by class.
 
     When exactly two classes are present the violins are mirrored (split).
     For three or more classes, separate overlapping violins are drawn.
+    The figure is always displayed; set *return_df=True* to return the zone
+    scores DataFrame.
 
     Parameters
     ----------
@@ -366,13 +370,13 @@ def plot_zone_scores(
         Figure width (static export).
     height : int, default 580
         Figure height (static export).
-    return_fig : bool, default True
-        If ``True``, return ``(zone_scores_df, figure)`` for inline display.
+    return_df : bool, default False
+        If ``True``, return the zone PC1 scores DataFrame.
 
     Returns
     -------
-    pd.DataFrame
-        Zone PC1 score DataFrame (samples × zones).
+    pd.DataFrame or None
+        Zone PC1 score DataFrame (samples × zones) when *return_df* is True.
     """
     go = _require_plotly()
     from smx.zones.aggregation import ZoneAggregator
@@ -425,16 +429,15 @@ def plot_zone_scores(
             yaxis=dict(title="PC 1 Score"),
             violingap=0.05,
             violingroupgap=0.0,
-            legend=dict(orientation="h", y=-0.25, x=0.5, xanchor="center"),
+            legend=dict(orientation="h", y=-0.33, x=0.85, xanchor="center"),
             margin=dict(t=80, r=40, b=140, l=80),
         )
     )
 
     _write_figure(fig, output_path, width, height)
     fig.show()
-    if return_fig:
-        return zone_scores_df, fig
-    return zone_scores_df
+    if return_df:
+        return zone_scores_df
 
 
 # ── 4. All-Zone Threshold Overlay ──────────────────────────────────────────────
@@ -452,15 +455,16 @@ def plot_all_thresholds_overlay(
     theme: Optional[SMXTheme] = None,
     width: int = 1200,
     height: int = 500,
-    return_fig: bool = True,
-) -> Union[pd.DataFrame, tuple[pd.DataFrame, "go.Figure"]]:
+    return_df: bool = False,
+) -> Union[None, pd.DataFrame]:
     """Full-spectrum overlay of the top-ranked threshold per zone.
 
     Mean class spectra are drawn as solid lines across the full spectral axis.
     The top-ranked predicate threshold for each zone is reconstructed from PCA
     space and overlaid as a dashed line within its zone's x-range.  Threshold
     line colors follow the LRC-score colorscale so the most influential zones
-    stand out visually.
+    stand out visually. The figure is always displayed; set *return_df=True*
+    to return the top-predicate-per-zone DataFrame.
 
     Parameters
     ----------
@@ -486,13 +490,13 @@ def plot_all_thresholds_overlay(
         Figure width (static export).
     height : int, default 500
         Figure height (static export).
-    return_fig : bool, default True
-        If ``True``, return ``(top_thresholds_df, figure)`` for inline display.
+    return_df : bool, default False
+        If ``True``, return the top-predicate-per-zone DataFrame.
 
     Returns
     -------
-    pd.DataFrame
-        Top-predicate-per-zone DataFrame used in the plot.
+    pd.DataFrame or None
+        Top-predicate-per-zone DataFrame when *return_df* is True.
     """
     go = _require_plotly()
     from plotly.colors import sample_colorscale
@@ -628,7 +632,7 @@ def plot_all_thresholds_overlay(
     fig.update_layout(
         **theme.plotly_layout(
             title=title or "All-Zone Threshold Overlay",
-            xaxis_title="Energy / Wavelength",
+            xaxis_title="Spectral variables",
             yaxis_title="Intensity",
             legend=dict(orientation="h", y=-0.28, x=0.5, xanchor="center"),
             margin=dict(t=80, r=40, b=150, l=80),
@@ -637,9 +641,8 @@ def plot_all_thresholds_overlay(
 
     _write_figure(fig, output_path, width, height)
     fig.show()
-    if return_fig:
-        return top_per_zone, fig
-    return top_per_zone
+    if return_df:
+        return top_per_zone
 
 
 # ── 5. Faithfulness Curve ─────────────────────────────────────────────────────
@@ -653,9 +656,12 @@ def plot_faithfulness_curve(
     width: int = 1100,
     height: int = 560,
     show_percentile: bool = False,
-    return_fig: bool = True,
-) -> Union[pd.DataFrame, tuple[pd.DataFrame, "go.Figure"]]:
+    return_df: bool = False,
+) -> Union[None, pd.DataFrame]:
     """Plot the progressive masking faithfulness curve and its AUC.
+
+    The figure is always displayed; set *return_df=True* to return the
+    masking-curve DataFrame.
 
     Parameters
     ----------
@@ -676,13 +682,13 @@ def plot_faithfulness_curve(
     show_percentile : bool, default False
         Whether to include the random-baseline percentile in the summary box.
         The value remains available in ``faithfulness_result`` either way.
-    return_fig : bool, default True
-        If ``True``, return ``(curve_df, figure)`` for inline display.
+    return_df : bool, default False
+        If ``True``, return the masking-curve DataFrame.
 
     Returns
     -------
-    pd.DataFrame
-        Masking-curve DataFrame used in the plot.
+    pd.DataFrame or None
+        Masking-curve DataFrame when *return_df* is True.
     """
     go = _require_plotly()
     from plotly.colors import sample_colorscale
@@ -875,13 +881,12 @@ def plot_faithfulness_curve(
                 cmax=score_max,
                 showscale=False,
             ),
-            legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center"),
+            legend=dict(orientation="h", y=-0.25, x=0.5, xanchor="center"),
             margin=dict(t=90, r=40, b=100, l=80),
         )
     )
 
     _write_figure(fig, output_path, width, height)
     fig.show()
-    if return_fig:
-        return curve_df, fig
-    return curve_df
+    if return_df:
+        return curve_df
