@@ -108,7 +108,7 @@ def building_spectral_zones(
                 values,
                 window_length=svg_window_length,
                 polyorder=svg_polyorder,
-                deriv=0,
+                deriv=1,
             )
         except Exception:
             values_s = values.copy()

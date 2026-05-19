@@ -164,7 +164,7 @@ def plot_predicate_heatmap(
     theme: Optional[SMXTheme] = None,
     width: int = 1000,
     height: int = 550,
-    return_fig: bool = False,
+    return_fig: bool = True,
 ) -> Union[pd.DataFrame, tuple[pd.DataFrame, "go.Figure"]]:
     """Heatmap of LRC scores across zones and predicate thresholds.
 
