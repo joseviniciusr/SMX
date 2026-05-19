@@ -310,4 +310,4 @@ for _, row in top_per_zone.iterrows():
         y_labels=y_cal,
         output_path=html_path,
     )
-    print(f"  Saved Plotly: {html_path}")
+    print(f"Saved Plotly: {html_path}")
