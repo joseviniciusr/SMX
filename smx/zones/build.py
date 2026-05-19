@@ -17,6 +17,7 @@ def building_spectral_zones(
     svg_smooth: bool = False,
     svg_window_length: int = 7,
     svg_polyorder: int = 3,
+    svg_deriv: int = 1,
     ploting: bool = True,
     plotting: Optional[bool] = None,
     theme: Optional[SMXTheme] = None,
@@ -43,6 +44,10 @@ def building_spectral_zones(
         Savitzky-Golay window length.
     svg_polyorder : int, default 3
         Savitzky-Golay polynomial order.
+    svg_deriv : int, default 1
+        Derivative order for Savitzky-Golay filtering. Use 0 for no derivative
+        (smoothing only), 1 for first derivative, 2 for second derivative, etc.
+        Only used when ``svg_smooth=True``.
     ploting : bool, default True
         When True, plot the spectrum with zone backgrounds and identified peaks.
     plotting : bool, optional
@@ -108,7 +113,7 @@ def building_spectral_zones(
                 values,
                 window_length=svg_window_length,
                 polyorder=svg_polyorder,
-                deriv=1,
+                deriv=svg_deriv,
             )
         except Exception:
             values_s = values.copy()
