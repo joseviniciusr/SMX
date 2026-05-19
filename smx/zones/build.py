@@ -127,7 +127,7 @@ def building_spectral_zones(
     sorted_mins = np.sort(index_min.astype(int))
     sorted_maxs = np.sort(index_max.astype(int))
 
-    if len(index_values) > 0:
+    if len(index_values) > 0: # Ensure there are index values to define the spectrum range.
         spectrum_start_idx = 0
         spectrum_end_idx = len(index_values) - 1
 
@@ -142,7 +142,7 @@ def building_spectral_zones(
         extrema = [(int(i), "min") for i in sorted_mins] + [(int(i), "max") for i in sorted_maxs]
         extrema.sort(key=lambda item: (item[0], 0 if item[1] == "min" else 1))
 
-        first_min = int(sorted_mins[0])
+        first_min = int(sorted_mins[0]) # The first minimum is the leftmost minimum (which may be a sentinel at the start).
 
         # Internal segments: walk extrema sequence from the first minimum.
         start_pos = next(i for i, (idx, kind) in enumerate(extrema) if kind == "min" and idx == first_min)
@@ -188,8 +188,8 @@ def building_spectral_zones(
     # Convert positional indices to labels (or numeric positions for numpy input).
     spectral_cuts: List[Tuple[str, Union[int, float, str], Union[int, float, str]]] = []
     for label, start_idx, end_idx in spectral_cuts_idx:
-        start_label = index_values[int(start_idx)]
-        end_label = index_values[int(end_idx)]
+        start_label = float(index_values[int(start_idx)])
+        end_label = float(index_values[int(end_idx)])
         spectral_cuts.append((label, start_label, end_label))
 
     # Optional visualization using the shared SMX plotting theme.
