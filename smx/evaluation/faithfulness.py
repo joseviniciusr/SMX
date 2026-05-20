@@ -18,7 +18,12 @@ from smx.zones.extraction import extract_spectral_zones
 
 
 MaskingStrategy = Literal["zero", "constant", "mean", "median", "min", "max"]
-FaithfulnessMetric = Literal["auto", "probability_shift", "mean_abs_diff"]
+FaithfulnessMetric = Literal[
+    "auto",
+    "probability_shift",
+    "mean_abs_diff",
+    "decision_function_shift",
+]
 
 
 def _prepare_zone_ranking(
@@ -54,6 +59,8 @@ def _infer_metric(metric: FaithfulnessMetric, estimator: Any) -> str:
         return metric
     if hasattr(estimator, "predict_proba"):
         return "probability_shift"
+    if hasattr(estimator, "decision_function"):
+        return "decision_function_shift"
     return "mean_abs_diff"
 
 
@@ -109,6 +116,19 @@ def _score_prediction_shift(
         y_masked = np.asarray(estimator.predict(X_masked), dtype=float).reshape(-1)
         return float(np.mean(np.abs(y_orig - y_masked)))
 
+    if metric == "decision_function_shift":
+        if not hasattr(estimator, "decision_function"):
+            raise ValueError(
+                "Faithfulness metric 'decision_function_shift' requires an estimator "
+                "with decision_function()."
+            )
+        df_orig = np.asarray(estimator.decision_function(X_original), dtype=float)
+        df_masked = np.asarray(estimator.decision_function(X_masked), dtype=float)
+        if df_orig.ndim == 1:
+            df_orig = df_orig.flatten()
+            df_masked = df_masked.flatten()
+        return float(np.mean(np.abs(df_orig - df_masked)))
+
     raise ValueError(f"Unsupported faithfulness metric '{metric}'.")
 
 
@@ -142,8 +162,11 @@ def progressive_masking_faithfulness(
     X_reference : pd.DataFrame, optional
         Reference dataset used to compute masking replacement values for
         non-zero strategies. When ``None``, *X_eval* is used.
-    metric : {'auto', 'probability_shift', 'mean_abs_diff'}, default 'auto'
-        Scoring function applied to original vs masked predictions.
+    metric : {'auto', 'probability_shift', 'mean_abs_diff', 'decision_function_shift'}, default 'auto'
+        Scoring function applied to original vs masked predictions. ``'auto'``
+        chooses ``'probability_shift'`` when the estimator exposes
+        ``predict_proba()``, ``'decision_function_shift'`` when it exposes
+        ``decision_function()``, otherwise ``'mean_abs_diff'``.
     masking_strategy : {'zero', 'constant', 'mean', 'median', 'min', 'max'}, default 'zero'
         How the masked zone values are replaced.
     constant_value : float, default 0.0

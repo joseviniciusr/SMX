@@ -48,7 +48,7 @@ This flexibility enables both physically meaningful elemental regions and compos
 
 ### Manual Zone Detection with `building_spectral_zones`
 
-In addition to manually defining spectral zones via the `cuts` argument, SMX provides `building_spectral_zones`, a convenience function that automatically detects spectral zones from a single reference spectrum. This is particularly useful when you want to define zones based on the actual peaks and valleys present in your data, rather than predefined boundaries. This function is based on local minima and maxima detection via `scipy.signal.argrelmin` and `argrelmax`, with optional Savitzky-Golay smoothing to enhance robustness against noise. The detected zones are then formatted in the same way as manually defined cuts, allowing seamless integration into the SMX pipeline.
+In addition to manually defining spectral zones via the `cuts` argument, SMX provides `building_spectral_zones`, a convenience function that automatically detects spectral zones from a single reference spectrum. This is particularly useful when you want to define zones based on the actual peaks and valleys present in your data, rather than predefined boundaries. This function is based on local minima and maxima detection via `scipy.signal.argrelmin` and `scipy.signal.find_peaks`, with optional Savitzky-Golay smoothing to enhance robustness against noise. The detected zones are then formatted in the same way as manually defined cuts, allowing seamless integration into the SMX pipeline.
 
 Accordingly, the usage of `building_spectral_zones` is straightforward and can be directly applied to a representative spectrum or the mean spectrum across samples to identify zones and background segments. The main parameters control the sensitivity of peak detection are:
 
@@ -252,7 +252,7 @@ for consistent styling and support both `.html` (interactive) and
   </tr>
 </table>
 
-→ See the full [Plotting Gallery](smx/plotting/gallery.md) for usage examples and parameter reference.
+→ See the full [Plotting Gallery](https://github.com/joseviniciusr/SMX/blob/b17acb2ab91156a4aa2b4dd6c7ef5c1b303b892a/smx/plotting/gallery.md) for usage examples and parameter reference.
 
 ---
 
@@ -302,11 +302,63 @@ plot_zone_ranking_over_spectrum(
 )
 ```
 
-![Zone ranking over spectrum](assets/zone_ranking_over_spectrum.png)
+![Zone ranking over spectrum](https://raw.githubusercontent.com/joseviniciusr/SMX/b17acb2ab91156a4aa2b4dd6c7ef5c1b303b892a/assets/zone_ranking_over_spectrum.png)
+
+## Faithfulness Evaluation
+
+SMX provides a built-in **progressive masking** protocol to assess how faithfully an explanation reflects the model's actual decision behaviour. Given a held-out evaluation set, the method works as follows:
+
+1. Zones are masked one at a time, in order of decreasing LRC score
+2. The classifier's prediction is recomputed after each masking step
+3. A prediction-shift curve is built by accumulating the changes in the model's output as more zones are removed
+
+The result is summarised by the **Area Under the Curve (AUC)** of this masking curve. A high AUC indicates that the top-ranked zones carry most of the model's discriminative power — i.e. the explanation is faithful. A low AUC (close to random ordering) suggests the ranking does not reflect the model's actual decision logic.
+
+The output of `evaluate_faithfulness` includes:
+
+- **`auc`** — trapezoidal AUC of the masking curve. Raw AUC values are bounded by the total number of zones and the model's baseline accuracy; they are **normalised to the [0, 1] interval** by dividing by the maximum achievable AUC (i.e. the AUC of a perfectly ordered ranking that masks the least-informative zones first).
+- **`level`** — a categorical quality label assigned as follows:
+
+  | Level | Condition |
+  |-------|-----------|
+  | *very high* | `null_percentile ≥ 95` |
+  | *high* | `null_percentile ≥ 90` |
+  | *moderate* | `null_percentile ≥ 75` |
+  | *low* | `null_percentile ≥ 50` |
+  | *very low* | `null_percentile < 50` |
+
+- **`null_percentile`** — percentile of the true AUC against a **null distribution** built by computing the AUC for a large number of random zone orderings (default: 500 permutations). A percentile close to 100 means the LRC-based ranking is far better than random; a percentile near 50 means the ranking carries no more information than chance.
+- **`curve_df`** — a DataFrame with columns `k`, `masked_zone`, `masked_zones`, and `score` describing the curve point at each masking step
+- **`plot_path`** — path to a saved interactive Plotly HTML figure (when `output_path` is provided)
+- **`null_distribution`** — list of AUC values from the null (random) permutations, useful for diagnostic histograms
+- **`k`** — number of top zones at which the maximum drop in prediction score is observed
+
+**Interpretation guide for the masking curve:**
+
+- **Steep early drop** (top-left of curve is high) — the first few zones dominate the prediction, confirming that the LRC ranking captures the core decision boundary
+- **Gradual decline** — predictive power is distributed across many zones; the model relies on a broad spectral signature rather than a few sharp features
+- **Flat curve** — masking has little effect regardless of zone order, indicating either a weak classifier or a ranking that is misaligned with decision behaviour
+
+The curve is visualised via `plot_faithfulness_curve`, which draws the prediction-shift curve with a shaded AUC region and annotates the summary statistics. Pass `show_percentile=True` to overlay the null-distribution percentile band on the figure.
+
+```python
+# After fitting an SMX explainer
+faithfulness = smx.evaluate_faithfulness(
+    X_test_prep,
+    ranking="unique",
+    masking_strategy="zero",
+    metric="auto", # automatically selects "probability_shift", "decision_function_shift", or "mean_abs_diff" based on the estimator's available methods
+    output_path="faithfulness_curve.html",
+)
+print(f"AUC: {faithfulness['auc']:.4f} | Level: {faithfulness['level']} | "
+      f"Null percentile: {faithfulness['null_percentile']:.1f}%")
+```
+
+![SMX faithfulness curve — progressive zone masking](https://raw.githubusercontent.com/joseviniciusr/SMX/b17acb2ab91156a4aa2b4dd6c7ef5c1b303b892a/assets/faithfulness_curve.png)
 
 For a complete, executable walkthrough with synthetic data and visualization outputs, see the quickstart notebook:
 
-[examples/quickstart.ipynb](examples/quickstart.ipynb)
+[examples/quickstart.ipynb](https://github.com/joseviniciusr/SMX/blob/b17acb2ab91156a4aa2b4dd6c7ef5c1b303b892a/examples/quickstart.ipynb)
 
 ## Citation
 

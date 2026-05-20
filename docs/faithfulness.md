@@ -11,6 +11,7 @@ faithfulness = smx.evaluate_faithfulness(
     X_eval=X_test_prep,
     ranking="unique",
     masking_strategy="zero",
+    metric="auto",  # automatically selects "probability_shift", "decision_function_shift", or "mean_abs_diff" based on the estimator's available methods
     output_path="faithfulness_curve.html",
 )
 
