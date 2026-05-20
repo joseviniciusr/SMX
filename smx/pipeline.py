@@ -355,7 +355,12 @@ class SMX:
         *,
         ranking: Literal["unique", "summed", "natural"] = "unique",
         X_reference: Optional[pd.DataFrame] = None,
-        metric: Literal["auto", "probability_shift", "mean_abs_diff"] = "auto",
+        metric: Literal[
+            "auto",
+            "probability_shift",
+            "mean_abs_diff",
+            "decision_function_shift",
+        ] = "aurandom_stateto",
         masking_strategy: Literal["zero", "constant", "mean", "median", "min", "max"] = "zero",
         constant_value: float = 0.0,
         max_k: Optional[int] = None,
@@ -384,10 +389,11 @@ class SMX:
         X_reference : pd.DataFrame, optional
             Reference spectra used to compute replacement values for
             non-zero masking strategies. Defaults to *X_eval*.
-        metric : {'auto', 'probability_shift', 'mean_abs_diff'}, default 'auto'
+        metric : {'auto', 'probability_shift', 'mean_abs_diff', 'decision_function_shift'}, default 'auto'
             Prediction-shift metric to evaluate. ``'auto'`` chooses
             ``'probability_shift'`` when the estimator exposes
-            ``predict_proba()``, otherwise ``'mean_abs_diff'``.
+            ``predict_proba()``, ``'decision_function_shift'`` when it exposes
+            ``decision_function()``, otherwise ``'mean_abs_diff'``.
         masking_strategy : {'zero', 'constant', 'mean', 'median', 'min', 'max'}, default 'zero'
             How masked spectral variables are replaced.
         constant_value : float, default 0.0
