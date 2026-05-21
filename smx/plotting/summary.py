@@ -656,6 +656,9 @@ def plot_faithfulness_curve(
     width: int = 1100,
     height: int = 560,
     show_percentile: bool = False,
+    show_faithfulness_level: bool = True,
+    show_summary: bool = True,
+    show_level_intervals: bool = True,
     return_df: bool = False,
 ) -> Union[None, pd.DataFrame]:
     """Plot the progressive masking faithfulness curve and its AUC.
@@ -682,6 +685,12 @@ def plot_faithfulness_curve(
     show_percentile : bool, default False
         Whether to include the random-baseline percentile in the summary box.
         The value remains available in ``faithfulness_result`` either way.
+    show_faithfulness_level : bool, default True
+        Whether to show the "Faithfulness Level" annotation box.
+    show_summary : bool, default True
+        Whether to show the summary box with AUC and metric info.
+    show_level_intervals : bool, default True
+        Whether to show the "Level intervals" legend box.
     return_df : bool, default False
         If ``True``, return the masking-curve DataFrame.
 
@@ -795,75 +804,77 @@ def plot_faithfulness_curve(
         )
 
 
-    fig.add_annotation(
-        x=0.15,
-        y=0.85,
-        xref="paper",
-        yref="paper",
-        xanchor="right",
-        yanchor="top",
-        align="left",
-        showarrow=False,
-        bordercolor="rgba(140,140,140,0.35)",
-        borderwidth=1,
-        borderpad=8,
-        bgcolor="rgba(255,255,255,0.88)",
-        font=dict(size=17, family=theme.font_family),
-        text=f"Faithfulness Level: <br><b>{level}</b>",
-    )
+    if show_faithfulness_level:
+        fig.add_annotation(
+            x=0.15,
+            y=0.85,
+            xref="paper",
+            yref="paper",
+            xanchor="right",
+            yanchor="top",
+            align="left",
+            showarrow=False,
+            bordercolor="rgba(140,140,140,0.35)",
+            borderwidth=1,
+            borderpad=8,
+            bgcolor="rgba(255,255,255,0.88)",
+            font=dict(size=17, family=theme.font_family),
+            text=f"Faithfulness Level: <br><b>{level}</b>",
+        )
 
+    if show_summary:
+        summary_lines = []
+        if auc is not None:
+            summary_lines.append(f"AUC: {float(auc):.4f}")
+        if auc_normalized is not None:
+            summary_lines.append(f"Normalized AUC: {float(auc_normalized):.4f}")
+        if show_percentile and percentile is not None:
+            summary_lines.append(f"Percentile: {float(percentile):.1f}%")
+        if metric is not None:
+            summary_lines.append(f"Metric: {metric}")
 
-    summary_lines = []
-    if auc is not None:
-        summary_lines.append(f"AUC: {float(auc):.4f}")
-    if auc_normalized is not None:
-        summary_lines.append(f"Normalized AUC: {float(auc_normalized):.4f}")
-    if percentile is not None:
-        summary_lines.append(f"Percentile: {float(percentile):.1f}%")
-    if metric is not None:
-        summary_lines.append(f"Metric: {metric}")
+        fig.add_annotation(
+            x=0.995,
+            y=0.85,
+            xref="paper",
+            yref="paper",
+            xanchor="right",
+            yanchor="top",
+            align="left",
+            showarrow=False,
+            bordercolor="rgba(140,140,140,0.35)",
+            borderwidth=1,
+            borderpad=8,
+            bgcolor="rgba(255,255,255,0.88)",
+            text="<br>".join(summary_lines),
+        )
 
-    fig.add_annotation(
-        x=0.995,
-        y=0.85,
-        xref="paper",
-        yref="paper",
-        xanchor="right",
-        yanchor="top",
-        align="left",
-        showarrow=False,
-        bordercolor="rgba(140,140,140,0.35)",
-        borderwidth=1,
-        borderpad=8,
-        bgcolor="rgba(255,255,255,0.88)",
-        text="<br>".join(summary_lines),
-    )
-
-    fig.add_annotation(
-        x=0.995,
-        y=0.15,
-        xref="paper",
-        yref="paper",
-        xanchor="right",
-        yanchor="top",
-        align="left",
-        showarrow=False,
-        bordercolor="rgba(140,140,140,0.35)",
-        borderwidth=1,
-        borderpad=8,
-        bgcolor="rgba(255,255,255,0.88)",
-        text=(
-            "<b>Level intervals</b><br>"
-            "Low: percentile &lt; 60<br>"
-            "Moderate: 60-79.9<br>"
-            "High: 80-94.9<br>"
-            "Very high: >= 95"
-        ),
-    )
+    if show_level_intervals:
+        fig.add_annotation(
+            x=0.995,
+            y=0.15,
+            xref="paper",
+            yref="paper",
+            xanchor="right",
+            yanchor="top",
+            align="left",
+            showarrow=False,
+            bordercolor="rgba(140,140,140,0.35)",
+            borderwidth=1,
+            borderpad=8,
+            bgcolor="rgba(255,255,255,0.88)",
+            text=(
+                "<b>Level intervals</b><br>"
+                "Low: percentile &lt; 60<br>"
+                "Moderate: 60-79.9<br>"
+                "High: 80-94.9<br>"
+                "Very high: >= 95"
+            ),
+        )
 
     fig.update_layout(
         **theme.plotly_layout(
-            title=("Faithfulness via Progressive Zone Masking"),
+            title=title or "Faithfulness via Progressive Zone Masking",
             xaxis=dict(
                 title="k masked zones (cumulative top-ranked masking)",
                 tickmode="linear",

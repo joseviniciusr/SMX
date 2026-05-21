@@ -360,7 +360,7 @@ class SMX:
             "probability_shift",
             "mean_abs_diff",
             "decision_function_shift",
-        ] = "aurandom_stateto",
+        ] = "auto",
         masking_strategy: Literal["zero", "constant", "mean", "median", "min", "max"] = "zero",
         constant_value: float = 0.0,
         max_k: Optional[int] = None,
