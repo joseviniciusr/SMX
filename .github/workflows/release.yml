@@ -177,7 +177,7 @@ jobs:
           fi
 
           cat > /tmp/release_notes.md <<EOF
-          Docs: https://spectral-model-explainer.readthedocs.io/en/v${{ steps.version.outputs.VERSION }}/
+          Docs: https://spectral-model-explainer.readthedocs.io/
           PyPI: https://pypi.org/project/spectral-model-explainer/${{ steps.version.outputs.VERSION }}/
           EOF
 
