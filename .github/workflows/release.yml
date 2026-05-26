@@ -1,44 +1,55 @@
 name: Release
 
 on:
-  pull_request_target:
+  push:
     branches:
       - main
-    types:
-      - closed
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
-  guard:
+  docs:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    outputs:
-      run_release: ${{ steps.guard.outputs.run_release }}
 
     steps:
-      - name: Decide whether to run release
-        id: guard
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package + docs dependencies
         run: |
-          python3 - <<'PY'
-          import json
-          import os
+          pip install ".[docs]"
 
-          event_name = os.environ["GITHUB_EVENT_NAME"]
-          should_run = True
+      - name: Build Sphinx docs
+        run: |
+          sphinx-build -b html docs/ docs/_build/html 2>&1 | tee /tmp/sphinx_out.txt
+          SPHINX_EXIT=${PIPESTATUS[0]}
+          if [ $SPHINX_EXIT -ne 0 ]; then
+            echo "Sphinx exited with code $SPHINX_EXIT"
+            exit 1
+          fi
+          if grep -q "^WARNING:" /tmp/sphinx_out.txt; then
+            echo "Unexpected Sphinx warnings found:"
+            grep "^WARNING:" /tmp/sphinx_out.txt
+            exit 1
+          fi
 
-          if event_name in {"pull_request", "pull_request_target"}:
-              with open(os.environ["GITHUB_EVENT_PATH"], "r", encoding="utf-8") as handle:
-                  payload = json.load(handle)
-              should_run = payload.get("pull_request", {}).get("merged") is True
-              if not should_run:
-                  print("Pull request was closed without merge. Skipping release.")
-
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
-              handle.write(f"run_release={'true' if should_run else 'false'}\n")
-          PY
+      - name: Upload HTML docs as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-docs
+          path: docs/_build/html/
+          retention-days: 7
 
   release:
-    needs: guard
-    if: needs.guard.outputs.run_release == 'true'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: write
