@@ -5,12 +5,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python Versions](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue.svg)](pyproject.toml)
-[![PyPI](https://img.shields.io/pypi/v/dpg.svg)](https://pypi.org/project/dpg/)
-[![Build Status](https://github.com/Meta-Group/DPG/actions/workflows/ci.yml/badge.svg)](https://github.com/Meta-Group/DPG/actions/workflows/ci.yml)
-[![Documentation Status](https://readthedocs.org/projects/dpg/badge/?version=latest)](https://dpg.readthedocs.io/en/latest/)
-
-| ![DPG logo](https://github.com/Meta-Group/DPG/blob/main/DPG.png) |
-|:--:|
+[![PyPI](https://img.shields.io/pypi/v/spectral-model-explainer.svg)](https://pypi.org/project/spectral-model-explainer/)
+[![Build Status](https://github.com/joseviniciusr/SMX/actions/workflows/release.yml/badge.svg)](https://github.com/joseviniciusr/SMX/actions/workflows/release.yml)
+[![Documentation Status](https://readthedocs.org/projects/spectral-model-explainer/badge/?version=latest)](https://spectral-model-explainer.readthedocs.io/en/latest/)
 
 
 This is the official repository for the `spectral-model-explainer` (SMX) library, an eXplainable AI tool designed to provide explanations for Machine Learning (ML) models trained on spectral data (*e.g.*, XRF, GRS, Raman, vis-NIR, and related modalities).
