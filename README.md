@@ -6,6 +6,10 @@ This is the official repository for the `spectral-model-explainer` (SMX) library
 
 SMX is a post-hoc, global, model-agnostic framework that explains spectral-based ML classifiers directly in terms of expert-informed spectral zones. It aggregates each zone via PCA, formulates quantile-based logical predicates, estimates their relevance through perturbation experiments within stochastic subsamples, and integrates the results into a directed weighted graph whose global structure is summarized by Local Reaching Centrality. A distinctive feature is threshold spectrum reconstruction, which back-projects each predicate's decision boundary into the original spectral domain in natural measurement units, enabling practitioners to visually compare their spectra against the model-related boundaries.
 
+## Documentation
+
+Read the latest documentation at https://spectral-model-explainer.readthedocs.io/.
+
 ## Method Overview in the Library
 
 The high-level workflow is implemented in the `SMX` pipeline class and can also be executed component-by-component through the public API:
