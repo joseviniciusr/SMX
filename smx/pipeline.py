@@ -64,10 +64,33 @@ class SMX:
     perturbation_mode : str, default 'median'
         Replacement strategy for perturbation (``'constant'``, ``'mean'``,
         ``'median'``, ``'min'``, ``'max'``).
+    perturbation_value : float, default 0
+        Constant replacement value used when ``perturbation_mode='constant'``.
     perturbation_metric : str, default 'probability_shift'
-        Perturbation importance measure. Common values:
-        ``'probability_shift'`` (classifiers with ``predict_proba``),
-        ``'mean_abs_diff'`` (regressors).
+        Perturbation importance measure. Determines how the impact of
+        spectral zone perturbation is quantified. Choice depends on the
+        estimator type and the desired sensitivity:
+
+        **Classification estimators** (with ``predict_proba``):
+
+        - ``'probability_shift'`` — Mean total variation distance between
+          pre- and post-perturbation class probabilities. Sensitive to
+          confidence changes across all classes. Requires ``predict_proba``.
+        - ``'accuracy_drop'`` — Drop in accuracy when perturbed predictions
+          are compared to original predictions.
+        - ``'f1_drop'`` — Weighted F1-score decrease after perturbation.
+        - ``'decision_function_shift'`` — Mean absolute change in decision
+          function values (e.g. signed distances from hyperplane for SVC).
+          Requires ``decision_function()``.
+
+        **Regression estimators** (with ``predict`` returning continuous values):
+
+        - ``'mean_abs_diff'`` — Mean absolute difference between original
+          and perturbed predictions.
+        - ``'mean_diff'`` — Mean signed difference (bias direction). Positive
+          values indicate perturbation increases predictions, negative decreases.
+        - ``'mean_relative_dev'`` — Mean relative deviation, normalized by
+          original prediction magnitude. Treats zero predictions as NaN.
     normalize_by_zone_size : bool, default True
         Divide raw perturbation importance by zone width.
     zone_size_exponent : float, default 1.0
@@ -124,6 +147,7 @@ class SMX:
         metric: Literal["covariance", "perturbation"] = "perturbation",
         estimator: Optional[Any] = None,
         perturbation_mode: str = "median",
+        perturbation_value: float = 0,
         perturbation_metric: str = "probability_shift",
         perturbation_stats_source: str = "full",
         normalize_by_zone_size: bool = True,
@@ -148,6 +172,7 @@ class SMX:
         self.metric = metric
         self.estimator = estimator
         self.perturbation_mode = perturbation_mode
+        self.perturbation_value = perturbation_value
         self.perturbation_metric = perturbation_metric
         self.perturbation_stats_source = perturbation_stats_source
         self.normalize_by_zone_size = normalize_by_zone_size
@@ -266,6 +291,7 @@ class SMX:
                     predicates_df=predicates_df,
                     spectral_cuts=self.spectral_cuts,
                     perturbation_mode=self.perturbation_mode,
+                    perturbation_value=self.perturbation_value,
                     stats_source=self.perturbation_stats_source,
                     metric=self.perturbation_metric,
                     normalize_by_zone_size=self.normalize_by_zone_size,
