@@ -9,8 +9,36 @@ on:
   workflow_dispatch:
 
 jobs:
+  guard:
+    runs-on: ubuntu-latest
+    outputs:
+      run_release: ${{ steps.guard.outputs.run_release }}
+
+    steps:
+      - name: Decide whether to run release
+        id: guard
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+
+          event_name = os.environ["GITHUB_EVENT_NAME"]
+          should_run = True
+
+          if event_name == "pull_request":
+              with open(os.environ["GITHUB_EVENT_PATH"], "r", encoding="utf-8") as handle:
+                  payload = json.load(handle)
+              should_run = payload.get("pull_request", {}).get("merged") is True
+              if not should_run:
+                  print("Pull request was closed without merge. Skipping release.")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"run_release={'true' if should_run else 'false'}\n")
+          PY
+
   release:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true) }}
+    needs: guard
+    if: needs.guard.outputs.run_release == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
