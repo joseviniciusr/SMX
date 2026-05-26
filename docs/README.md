@@ -48,6 +48,6 @@ Then open `http://localhost:8000` in your browser.
 
 ## Publishing
 
-Documentation builds on every push to `main` via `.github/workflows/docs.yml`.
+Documentation builds on every push to `main` via `.github/workflows/release.yml`.
 If the project is configured on Read the Docs, the build is driven by
 `.readthedocs.yaml` and the same `docs/` source tree.
