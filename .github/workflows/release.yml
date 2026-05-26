@@ -4,52 +4,10 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:
-  docs:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install package + docs dependencies
-        run: |
-          pip install ".[docs]"
-
-      - name: Build Sphinx docs
-        run: |
-          sphinx-build -b html docs/ docs/_build/html 2>&1 | tee /tmp/sphinx_out.txt
-          SPHINX_EXIT=${PIPESTATUS[0]}
-          if [ $SPHINX_EXIT -ne 0 ]; then
-            echo "Sphinx exited with code $SPHINX_EXIT"
-            exit 1
-          fi
-          if grep -q "^WARNING:" /tmp/sphinx_out.txt; then
-            echo "Unexpected Sphinx warnings found:"
-            grep "^WARNING:" /tmp/sphinx_out.txt
-            exit 1
-          fi
-
-      - name: Upload HTML docs as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: html-docs
-          path: docs/_build/html/
-          retention-days: 7
-
   release:
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -73,69 +31,104 @@ jobs:
         run: poetry config virtualenvs.create false
 
       - name: Install dependencies
-        run: poetry install
+        run: poetry install --with docs
 
       - name: Determine version
+        env:
+          PACKAGE_NAME: spectral-model-explainer
+          PYPI_JSON_URL: https://pypi.org/pypi/spectral-model-explainer/json
         run: |
           PREV_VERSION=$(poetry version --short)
-          VERSION="$PREV_VERSION"
-          BUMPED=false
-          COMMIT_MSG=$(git log -1 --format=%s)
+          VERSION=$(CURRENT_VERSION="$PREV_VERSION" PACKAGE_NAME="$PACKAGE_NAME" PYPI_JSON_URL="$PYPI_JSON_URL" python3 - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          import urllib.request
 
-          # If commit message already contains the bump, use current version
-          if echo "$COMMIT_MSG" | grep -q "bump version to $PREV_VERSION"; then
-            echo "Determined by existing commit"
-          else
-            # No bump found — need to bump
-            poetry version patch
-            VERSION=$(poetry version --short)
+          SEMVER = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
+
+          def parse_version(value):
+              match = SEMVER.fullmatch(value.strip())
+              return tuple(int(part) for part in match.groups()) if match else None
+
+          def format_version(value):
+              return ".".join(str(part) for part in value)
+
+          current_version = parse_version(os.environ["CURRENT_VERSION"])
+
+          tag_output = subprocess.check_output(["git", "tag"], text=True)
+          tag_versions = []
+          for tag in tag_output.splitlines():
+              parsed = parse_version(tag)
+              if parsed is not None:
+                  tag_versions.append(parsed)
+
+          head_tag_output = subprocess.check_output(["git", "tag", "--points-at", "HEAD"], text=True)
+          head_versions = []
+          for tag in head_tag_output.splitlines():
+              parsed = parse_version(tag)
+              if parsed is not None:
+                  head_versions.append(parsed)
+
+          latest_tag_version = max(tag_versions) if tag_versions else None
+          latest_pypi_version = None
+
+          try:
+              with urllib.request.urlopen(os.environ["PYPI_JSON_URL"], timeout=10) as response:
+                  payload = json.load(response)
+              latest_pypi_version = parse_version(payload["info"]["version"])
+          except Exception:
+              latest_pypi_version = None
+
+          latest_released_version = max(
+              [version for version in (latest_tag_version, latest_pypi_version) if version is not None],
+              default=None,
+          )
+
+          if head_versions:
+              target_version = max(head_versions)
+          elif latest_released_version is not None and current_version is not None and current_version > latest_released_version:
+              target_version = current_version
+          elif latest_released_version is not None:
+              major, minor, patch = latest_released_version
+              target_version = (major, minor, patch + 1)
+          else:
+              target_version = current_version
+
+          print(format_version(target_version))
+          PY
+          )
+
+          BUMPED=false
+          if [ "$PREV_VERSION" != "$VERSION" ]; then
+            poetry version "$VERSION"
             BUMPED=true
-            echo "Bumped to: $VERSION"
+            echo "Bumping version from $PREV_VERSION to $VERSION"
+          else
+            echo "Using version: $VERSION"
+          fi
+
+          PYPI_EXISTS=false
+          if curl -fsSL "https://pypi.org/pypi/$PACKAGE_NAME/$VERSION/json" >/dev/null 2>&1; then
+            PYPI_EXISTS=true
+            echo "PyPI already has version $VERSION"
+          fi
+
+          TAG_EXISTS=false
+          if git tag | grep -q "^v$VERSION$"; then
+            TAG_EXISTS=true
+            echo "Git tag v$VERSION already exists"
           fi
 
           echo "PREV_VERSION=$PREV_VERSION" >> $GITHUB_OUTPUT
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "BUMPED=$BUMPED" >> $GITHUB_OUTPUT
-
-          # Check if tag already exists
-          git fetch --tags
-          if git tag | grep -q "^v$VERSION$"; then
-            echo "Tag v$VERSION already exists. Skipping publish."
-            echo "SKIP=true" >> $GITHUB_OUTPUT
-          else
-            echo "SKIP=false" >> $GITHUB_OUTPUT
-          fi
+          echo "PYPI_EXISTS=$PYPI_EXISTS" >> $GITHUB_OUTPUT
+          echo "TAG_EXISTS=$TAG_EXISTS" >> $GITHUB_OUTPUT
         id: version
 
-      - name: Create version bump branch
-        if: steps.version.outputs.SKIP == 'false' && steps.version.outputs.BUMPED == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add pyproject.toml
-          git commit -m "chore: bump version to ${{ steps.version.outputs.VERSION }}"
-          git checkout -b "chore/bump-version-to-${{ steps.version.outputs.VERSION }}"
-          git push origin "chore/bump-version-to-${{ steps.version.outputs.VERSION }}"
-
-      - name: Create tag
-        if: steps.version.outputs.SKIP == 'false'
-        run: |
-          git tag "v${{ steps.version.outputs.VERSION }}"
-          git push origin "v${{ steps.version.outputs.VERSION }}"
-
-      - name: Publish to PyPI
-        if: steps.version.outputs.SKIP == 'false'
-        id: publish
-        run: poetry publish --build
-        env:
-          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_API_TOKEN }}
-
-      - name: Install package + docs dependencies
-        if: steps.version.outputs.SKIP == 'false' && steps.publish.outcome == 'success'
-        run: pip install ".[docs]"
-
       - name: Build Sphinx docs
-        if: steps.version.outputs.SKIP == 'false' && steps.publish.outcome == 'success'
         run: |
           sphinx-build -b html docs/ docs/_build/html 2>&1 | tee /tmp/sphinx_out.txt
           SPHINX_EXIT=${PIPESTATUS[0]}
@@ -150,33 +143,64 @@ jobs:
           fi
 
       - name: Upload HTML docs as artifact
-        if: steps.version.outputs.SKIP == 'false' && steps.publish.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: html-docs
           path: docs/_build/html/
           retention-days: 7
 
-      - name: Revert version bump on publish failure
-        if: failure() && steps.publish.outcome == 'failure' && steps.version.outputs.BUMPED == 'true'
+      - name: Create tag
+        if: steps.version.outputs.TAG_EXISTS == 'false'
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ steps.version.outputs.VERSION }}"
+          git push origin "v${{ steps.version.outputs.VERSION }}"
 
-          if git tag | grep -q "^v${{ steps.version.outputs.VERSION }}$"; then
-            git tag -d "v${{ steps.version.outputs.VERSION }}"
+      - name: Publish to PyPI
+        if: steps.version.outputs.PYPI_EXISTS == 'false'
+        id: publish
+        run: poetry publish --build
+        env:
+          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_API_TOKEN }}
+
+      - name: Delete tag on publish failure
+        if: failure() && steps.publish.outcome == 'failure' && steps.version.outputs.TAG_EXISTS == 'false'
+        run: |
+          if git ls-remote --tags origin "refs/tags/v${{ steps.version.outputs.VERSION }}" | grep -q .; then
             git push origin ":refs/tags/v${{ steps.version.outputs.VERSION }}"
           fi
 
-          git revert --no-edit HEAD
-          git push
-
       - name: Create GitHub Release
-        if: steps.version.outputs.SKIP == 'false'
         run: |
+          if gh release view "v${{ steps.version.outputs.VERSION }}" >/dev/null 2>&1; then
+            echo "GitHub release v${{ steps.version.outputs.VERSION }} already exists"
+            exit 0
+          fi
+
+          cat > /tmp/release_notes.md <<EOF
+          Docs: https://spectral-model-explainer.readthedocs.io/en/v${{ steps.version.outputs.VERSION }}/
+          PyPI: https://pypi.org/project/spectral-model-explainer/${{ steps.version.outputs.VERSION }}/
+          EOF
+
           gh release create "v${{ steps.version.outputs.VERSION }}" \
+            --target "$GITHUB_SHA" \
             --title "v${{ steps.version.outputs.VERSION }}" \
-            --notes "Docs: https://spectral-model-explainer.readthedocs.io/en/v${{ steps.version.outputs.VERSION }}/
-          PyPI: https://pypi.org/project/spectral-model-explainer/${{ steps.version.outputs.VERSION }}/"
+            --notes-file /tmp/release_notes.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create version bump branch
+        if: steps.version.outputs.BUMPED == 'true'
+        run: |
+          BRANCH_NAME="chore/bump-version-to-${{ steps.version.outputs.VERSION }}"
+
+          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; then
+            echo "Branch $BRANCH_NAME already exists"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH_NAME"
+          git add pyproject.toml
+          git commit -m "chore: bump version to ${{ steps.version.outputs.VERSION }}"
+          git push origin "$BRANCH_NAME"
