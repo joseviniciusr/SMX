@@ -2,6 +2,17 @@
   <img src="https://raw.githubusercontent.com/joseviniciusr/SMX/2e0fee9bd9f18786d33d5250233ddb5006dbd2a1/SMX_final_logo.png" alt="SMX logo" width="560">
 </p>
 
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python Versions](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue.svg)](pyproject.toml)
+[![PyPI](https://img.shields.io/pypi/v/dpg.svg)](https://pypi.org/project/dpg/)
+[![Build Status](https://github.com/Meta-Group/DPG/actions/workflows/ci.yml/badge.svg)](https://github.com/Meta-Group/DPG/actions/workflows/ci.yml)
+[![Documentation Status](https://readthedocs.org/projects/dpg/badge/?version=latest)](https://dpg.readthedocs.io/en/latest/)
+
+| ![DPG logo](https://github.com/Meta-Group/DPG/blob/main/DPG.png) |
+|:--:|
+
+
 This is the official repository for the `spectral-model-explainer` (SMX) library, an eXplainable AI tool designed to provide explanations for Machine Learning (ML) models trained on spectral data (*e.g.*, XRF, GRS, Raman, vis-NIR, and related modalities).
 
 SMX is a post-hoc, global, model-agnostic framework that explains spectral-based ML classifiers directly in terms of expert-informed spectral zones. It aggregates each zone via PCA, formulates quantile-based logical predicates, estimates their relevance through perturbation experiments within stochastic subsamples, and integrates the results into a directed weighted graph whose global structure is summarized by Local Reaching Centrality. A distinctive feature is threshold spectrum reconstruction, which back-projects each predicate's decision boundary into the original spectral domain in natural measurement units, enabling practitioners to visually compare their spectra against the model-related boundaries.
