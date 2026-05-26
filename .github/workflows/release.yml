@@ -33,7 +33,7 @@ jobs:
                   print("Pull request was closed without merge. Skipping release.")
 
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
-              handle.write(f"run_release={'true' if should_run else 'false'}\\n")
+              handle.write(f"run_release={'true' if should_run else 'false'}\n")
           PY
 
   release:
