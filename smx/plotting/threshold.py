@@ -30,13 +30,17 @@ def plot_threshold_spectrum(
     width: Optional[int] = 900,
     height: Optional[int] = 450,
     return_df: bool = False,
-) -> Union[None, pd.Series]:
+    return_fig: bool = True,
+) -> Union[None, pd.Series, "go.Figure"]:
     """Reconstruct a threshold to spectrum space and save an HTML plot.
 
     The plot overlays the reconstructed multivariate threshold (in red) on
     top of the individual sample spectra for the chosen spectral zone,
     coloured by class label. The figure is always displayed; set *return_df=True*
-    to return the threshold spectrum Series.
+    to return the threshold spectrum Series, or *return_fig=True* to also
+    receive the underlying :class:`plotly.graph_objects.Figure` so callers
+    can layer additional traces (e.g. an original sample spectrum and
+    counterfactuals) on top of the threshold overlay.
 
     Parameters
     ----------
@@ -62,6 +66,12 @@ def plot_threshold_spectrum(
         Visual theme.  Defaults to :data:`smx.plotting.theme.DEFAULT_THEME`.
     return_df : bool, default False
         If ``True``, return the threshold spectrum Series.
+    return_fig : bool, default True
+        If ``True``, return the :class:`plotly.graph_objects.Figure` (in
+        addition to honouring ``return_df`` when both are set).  Useful when
+        the caller wants to add its own traces (e.g. an original sample
+        and counterfactuals) on top of the threshold overlay before
+        displaying or exporting the figure.
 
     Raises
     ------
@@ -158,5 +168,9 @@ def plot_threshold_spectrum(
             )
 
     fig.show()
+    if return_fig and return_df:
+        return threshold_spectrum, fig
+    if return_fig:
+        return fig
     if return_df:
         return threshold_spectrum
