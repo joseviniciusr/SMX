@@ -28,6 +28,11 @@ class PredicateGraphBuilder:
 
     Parameters
     ----------
+    class_labels : list of str, optional
+        Unique class labels present in the calibration set. When provided,
+        one terminal node (``Class_<label>``) is created in the graph for each
+        label. When ``None``, the legacy binary fallback creates two terminals:
+        ``Class_A`` and ``Class_B``.
     random_state : int, default 42
         Seed for random tie-breaking of bidirectional edges.
     show_details : bool, default True
@@ -43,6 +48,7 @@ class PredicateGraphBuilder:
 
     def __init__(
         self,
+        class_labels: Optional[List[str]] = None,
         random_state: int = 42,
         show_details: bool = True,
         var_exp: bool = False,
@@ -50,6 +56,7 @@ class PredicateGraphBuilder:
     ) -> None:
         if var_exp and pca_info_dict is None:
             raise ValueError("pca_info_dict is required when var_exp=True.")
+        self.class_labels = class_labels  # None triggers legacy binary fallback
         self.random_state = random_state
         self.show_details = show_details
         self.var_exp = var_exp
@@ -59,7 +66,6 @@ class PredicateGraphBuilder:
         self,
         bags_result: Dict[str, Dict[str, pd.DataFrame]],
         predicate_ranking_dict: Dict[str, pd.DataFrame],
-        metric_column: str = "Covariance",
     ) -> nx.DiGraph:
         """Build and return the directed predicate graph.
 
@@ -68,11 +74,9 @@ class PredicateGraphBuilder:
         bags_result : dict
             Bags as returned by :class:`smx.predicates.bagging.PredicateBagger`.
         predicate_ranking_dict : dict
-            ``{bag_name: DataFrame(['Predicate', metric_column])}``
+            ``{bag_name: DataFrame(['Predicate', 'Perturbation'])}``
             as returned by a :class:`smx.predicates.metrics.BasePredicateMetric`
             subclass.
-        metric_column : str, default ``'Covariance'``
-            Name of the metric column in *predicate_ranking_dict*.
 
         Returns
         -------
@@ -82,8 +86,16 @@ class PredicateGraphBuilder:
         np.random.seed(self.random_state)
 
         DG: nx.DiGraph = nx.DiGraph()
-        DG.add_node("Class_A", node_type="terminal", class_label="A")
-        DG.add_node("Class_B", node_type="terminal", class_label="B")
+
+        # Create one terminal node per class. Fall back to binary A/B when
+        # class_labels was not supplied (legacy / backward-compatibility mode).
+        _terminal_labels: List[str] = (
+            [str(lbl) for lbl in self.class_labels]
+            if self.class_labels is not None
+            else ["A", "B"]
+        )
+        for _label in _terminal_labels:
+            DG.add_node(f"Class_{_label}", node_type="terminal", class_label=_label)
 
         # ── Phase 1: accumulate edge weights ─────────────────────────────
         for bag_name, bag_predicates_dict in bags_result.items():
@@ -101,7 +113,7 @@ class PredicateGraphBuilder:
                 continue
 
             lookup: Dict[str, float] = dict(
-                zip(ranking_df["Predicate"], ranking_df[metric_column])
+                zip(ranking_df["Predicate"], ranking_df["Perturbation"])
             )
 
             for i in range(len(ordered) - 1):
@@ -116,24 +128,31 @@ class PredicateGraphBuilder:
             last = ordered[-1]
             DG.add_node(last, node_type="predicate")
             df_last = bag_predicates_dict[last]
-            if "Class_Predicted" in df_last.columns:
+            if "Class_Predicted" in df_last.columns and not df_last["Class_Predicted"].empty:
                 majority = df_last["Class_Predicted"].value_counts().idxmax()
                 terminal = f"Class_{majority}"
             else:
-                terminal = "Class_A"
+                # Fallback: point to the first terminal node registered in the graph.
+                _available_terminals = [
+                    n for n, attr in DG.nodes(data=True)
+                    if attr.get("node_type") == "terminal"
+                ]
+                terminal = _available_terminals[0] if _available_terminals else "Class_A"
             w = self._edge_weight(last, lookup)
             self._accumulate(DG, last, terminal, w, bag_name)
 
         # ── Phase 2: resolve bidirectional edges ─────────────────────────
         n_removed = self._resolve_bidirectional(DG)
+        _n_terminals = sum(1 for _, a in DG.nodes(data=True) if a.get("node_type") == "terminal")
+        _n_predicates = sum(1 for _, a in DG.nodes(data=True) if a.get("node_type") == "predicate")
         print(
             f"\n{'='*70}\n"
             f"CONSTRUCTED GRAPH SUMMARY\n"
             f"{'='*70}\n"
+            f"Terminal nodes ({_n_terminals}): {_terminal_labels}\n"
+            f"Predicate nodes: {_n_predicates}\n"
             f"Edges (after removing {n_removed} bidirectional): {DG.number_of_edges()}\n"
-            f"Predicate nodes: "
-            f"{sum(1 for _, a in DG.nodes(data=True) if a.get('node_type') == 'predicate')}\n"
-            f"Metric: {metric_column}\n"
+            f"Metric column: Perturbation\n"
             f"Variance-exp weighting: {'ENABLED' if self.var_exp else 'DISABLED'}"
         )
         return DG
