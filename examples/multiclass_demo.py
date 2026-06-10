@@ -77,5 +77,5 @@ smx.fit(X_cal_prep, y_class_labels, X_cal_natural=X_cal)
 
 # ── Inspect results ────────────────────────────────────────────────────────────
 print("\n=== Zone ranking (multi-class, 3 classes) ===")
-print(smx.lrc_summed_unique_)
+print(smx.lrc_unique_)
 print(f"\nValid seeds: {smx.valid_seeds_}")

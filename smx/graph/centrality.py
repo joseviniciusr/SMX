@@ -88,10 +88,10 @@ def aggregate_lrc_across_seeds(
 
     Returns
     -------
-    lrc_summed_df : pd.DataFrame
+    lrc_df : pd.DataFrame
         Mean-aggregated LRC for all predicates, sorted descending.
-    lrc_summed_unique_df : pd.DataFrame
-        Zone-deduplicated version of *lrc_summed_df* (one row per zone),
+    lrc_unique_df : pd.DataFrame
+        Zone-deduplicated version of *lrc_df* (one row per zone),
         keeping the highest-ranked predicate per zone.
     """
     frames = [lrc_by_seed[seed].copy() for seed in random_seeds if seed in lrc_by_seed]
@@ -100,7 +100,7 @@ def aggregate_lrc_across_seeds(
 
     lrc_all = pd.concat(frames, ignore_index=True)
 
-    lrc_summed_df = (
+    lrc_df = (
         lrc_all.groupby("Node")
         .agg(
             Local_Reaching_Centrality=("Local_Reaching_Centrality", "mean"),
@@ -113,11 +113,11 @@ def aggregate_lrc_across_seeds(
         .reset_index(drop=True)
     )
 
-    lrc_summed_unique_df = (
-        lrc_summed_df.drop_duplicates(subset=["Zone"], keep="first")
+    lrc_unique_df = (
+        lrc_df.drop_duplicates(subset=["Zone"], keep="first")
         .reset_index(drop=True)
         .sort_values("Local_Reaching_Centrality", ascending=False)
         .reset_index(drop=True)
     )
 
-    return lrc_summed_df, lrc_summed_unique_df
+    return lrc_df, lrc_unique_df

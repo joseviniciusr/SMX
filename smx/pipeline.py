@@ -95,10 +95,10 @@ class SMX:
         ``X_cal_natural`` is provided to :meth:`fit`). Columns:
         ``Node``, ``Local_Reaching_Centrality``, ``Zone``, ``Threshold``,
         ``Operator``, ``Threshold_Natural``.
-    lrc_summed\_ : pd.DataFrame
+    lrc\_ : pd.DataFrame
         Mean-aggregated LRC across seeds, preprocessed-scale thresholds.
-    lrc_summed_unique\_ : pd.DataFrame
-        Zone-deduplicated version of *lrc_summed_* (one row per zone).
+    lrc_unique\_ : pd.DataFrame
+        Zone-deduplicated version of *lrc_* (one row per zone).
     zone_scores\_ : pd.DataFrame
         PCA zone scores on the preprocessed calibration data.
     predicates_df\_ : pd.DataFrame
@@ -163,8 +163,8 @@ class SMX:
 
         # Result attributes — populated by fit()
         self.lrc_natural_: Optional[pd.DataFrame] = None
-        self.lrc_summed_: Optional[pd.DataFrame] = None
-        self.lrc_summed_unique_: Optional[pd.DataFrame] = None
+        self.lrc_: Optional[pd.DataFrame] = None
+        self.lrc_unique_: Optional[pd.DataFrame] = None
         self.zone_scores_: Optional[pd.DataFrame] = None
         self.predicates_df_: Optional[pd.DataFrame] = None
         self.pca_info_: Optional[Dict] = None
@@ -330,11 +330,11 @@ class SMX:
 
         # ── Step 4: aggregate across seeds ───────────────────────────────
         logger.debug("Aggregating LRC across %d valid seeds…", len(self.valid_seeds_))
-        lrc_summed, lrc_summed_unique = aggregate_lrc_across_seeds(
+        lrc, lrc_unique = aggregate_lrc_across_seeds(
             lrc_by_seed, self.valid_seeds_
         )
-        self.lrc_summed_ = lrc_summed
-        self.lrc_summed_unique_ = lrc_summed_unique
+        self.lrc_ = lrc
+        self.lrc_unique_ = lrc_unique
 
         # ── Step 5: map thresholds to natural scale (optional) ───────────
         if X_cal_natural is not None:
@@ -347,14 +347,14 @@ class SMX:
             self.pca_info_natural_ = agg_natural.pca_info_
 
             self.lrc_natural_ = map_thresholds_to_natural(
-                lrc_df=lrc_summed,
+                lrc_df=lrc,
                 zone_sums_preprocessed=zone_scores,
                 zone_sums_natural=zone_scores_natural,
             )
         else:
             logger.info(
                 "X_cal_natural was not provided to SMX.fit(); skipping natural-scale threshold mapping. "
-                "Preprocessed-scale outputs (lrc_summed_, lrc_summed_unique_) remain available."
+                "Preprocessed-scale outputs (lrc_, lrc_unique_) remain available."
             )
             self.lrc_natural_ = None
             self.zones_natural_ = None
@@ -397,7 +397,7 @@ class SMX:
         ranking : {'unique', 'summed', 'natural'}, default 'unique'
             Ranking table used to derive the ordered list of spectral zones.
             ``'unique'`` uses the one-zone-per-row ranking in
-            :attr:`lrc_summed_unique_`. ``'summed'`` and ``'natural'`` are
+            :attr:`lrc_unique_`. ``'summed'`` and ``'natural'`` are
             deduplicated internally to one row per zone before masking.
         X_reference : pd.DataFrame, optional
             Reference spectra used to compute replacement values for
@@ -440,8 +440,8 @@ class SMX:
             )
 
         ranking_map = {
-            "unique": self.lrc_summed_unique_,
-            "summed": self.lrc_summed_,
+            "unique": self.lrc_unique_,
+            "summed": self.lrc_,
             "natural": self.lrc_natural_,
         }
         if ranking not in ranking_map:
@@ -506,7 +506,7 @@ class SMX:
         output_path : str or Path
             Destination ``.html`` file.
         ranking : {'unique', 'natural'}, default 'unique'
-            Ranking source. ``'unique'`` uses ``lrc_summed_unique_`` (one row per
+            Ranking source. ``'unique'`` uses ``lrc_unique_`` (one row per
             zone). ``'natural'`` uses ``lrc_natural_`` and collapses multiple
             predicates per zone to the strongest LRC value.
         aggregation : {'mean', 'median'}, default 'mean'
@@ -536,7 +536,7 @@ class SMX:
         """
         from smx.plotting import plot_zone_ranking_over_spectrum
 
-        if self.lrc_summed_ is None:
+        if self.lrc_ is None:
             raise RuntimeError(
                 "SMX must be fitted before calling plot_zone_ranking_over_spectrum."
             )
@@ -548,7 +548,7 @@ class SMX:
             )
 
         if ranking == "unique":
-            ranking_df = self.lrc_summed_unique_
+            ranking_df = self.lrc_unique_
         elif ranking == "natural":
             ranking_df = self.lrc_natural_
         else:

@@ -414,9 +414,9 @@ class TestPipelineIntegration:
         smx = self._make_smx(clf, p)
         smx.fit(X, clf.predict(X))
 
-        assert smx.lrc_summed_ is not None
-        assert not smx.lrc_summed_.empty
-        assert smx.lrc_summed_unique_ is not None
+        assert smx.lrc_ is not None
+        assert not smx.lrc_.empty
+        assert smx.lrc_unique_ is not None
         assert len(smx.valid_seeds_) > 0
 
     def test_end_to_end_three_classes(self):
@@ -429,8 +429,8 @@ class TestPipelineIntegration:
         smx = self._make_smx(clf, p)
         smx.fit(X, clf.predict(X))
 
-        assert smx.lrc_summed_ is not None
-        assert not smx.lrc_summed_.empty
+        assert smx.lrc_ is not None
+        assert not smx.lrc_.empty
 
     def test_end_to_end_five_classes(self):
         """Full pipeline must run without errors on a 5-class problem."""
@@ -442,7 +442,7 @@ class TestPipelineIntegration:
         smx = self._make_smx(clf, p, n_zones=5)
         smx.fit(X, clf.predict(X))
 
-        assert smx.lrc_summed_ is not None
+        assert smx.lrc_ is not None
 
     def test_graph_has_k_terminals_after_fit_binary(self):
         """After fitting on binary data, the graph must have exactly 2 terminals."""
@@ -506,7 +506,7 @@ class TestPipelineIntegration:
         smx.fit(X, clf.predict(X))
 
         lrc_zones = set(
-            smx.lrc_summed_unique_["Zone"].dropna().tolist()
+            smx.lrc_unique_["Zone"].dropna().tolist()
         )
         assert lrc_zones.issubset(zone_names), (
             f"Unexpected zone names in LRC output: {lrc_zones - zone_names}"
@@ -531,7 +531,7 @@ class TestPipelineIntegration:
         y_pred = pd.Series(clf.predict(X))
         smx.fit(X, y_pred)
 
-        assert smx.lrc_summed_ is not None
+        assert smx.lrc_ is not None
 
     def test_fit_idempotent(self):
         """Calling fit() twice must overwrite previous results, not accumulate."""
@@ -550,10 +550,10 @@ class TestPipelineIntegration:
             var_exp=False,
         )
         smx.fit(X, clf.predict(X))
-        first_result = smx.lrc_summed_.copy()
+        first_result = smx.lrc_.copy()
 
         smx.fit(X, clf.predict(X))  # second call
-        second_result = smx.lrc_summed_.copy()
+        second_result = smx.lrc_.copy()
 
         pd.testing.assert_frame_equal(first_result, second_result)
 
