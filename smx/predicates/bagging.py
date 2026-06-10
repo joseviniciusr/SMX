@@ -60,7 +60,6 @@ class PredicateBagger:
     def run(
         self,
         zone_scores_df: pd.DataFrame,
-        y_predicted_numeric: Union[pd.Series, np.ndarray],
         predicates_df: pd.DataFrame,
     ) -> Dict[str, Dict[str, pd.DataFrame]]:
         """Create bags by sampling samples and/or predicates.
@@ -69,8 +68,6 @@ class PredicateBagger:
         ----------
         zone_scores_df : pd.DataFrame
             Aggregated zone scores (samples × zones).
-        y_predicted_numeric : pd.Series or np.ndarray
-            Continuous model predictions aligned with *zone_scores_df*.
         predicates_df : pd.DataFrame
             Predicate catalogue with columns ``rule``, ``zone``,
             ``thresholds``, ``operator``.
@@ -78,12 +75,11 @@ class PredicateBagger:
         Returns
         -------
         dict
-            ``{'Bag_1': {rule: DataFrame(['Zone_Sum', 'Predicted_Y',
-            'Sample_Index']), ...}, 'Bag_2': ...}``
+            ``{'Bag_1': {rule: DataFrame(['Zone_Sum', 'Sample_Index']), ...},
+            'Bag_2': ...}``
+            Each inner DataFrame contains the zone score values and the original
+            sample indices for the samples that satisfy the predicate rule.
         """
-        if isinstance(y_predicted_numeric, np.ndarray):
-            y_predicted_numeric = pd.Series(y_predicted_numeric)
-
         np.random.seed(self.random_seed)
 
         n_total = len(zone_scores_df)
@@ -126,7 +122,7 @@ class PredicateBagger:
                 threshold = float(pred_row["thresholds"])
                 operator = pred_row["operator"]
 
-                zone_vals = zone_scores_df.loc[bag_indices, zone].values
+                zone_vals = zone_scores_df.iloc[bag_indices][zone].values
                 if operator == "<=":
                     mask = zone_vals <= threshold
                 elif operator == ">":
@@ -144,8 +140,7 @@ class PredicateBagger:
                     continue
 
                 bag_predicates[rule] = pd.DataFrame({
-                    "Zone_Sum": zone_scores_df.loc[satisfied, zone].values,
-                    "Predicted_Y": y_predicted_numeric.iloc[satisfied].values,
+                    "Zone_Sum": zone_scores_df.iloc[satisfied][zone].values,
                     "Sample_Index": satisfied,
                 })
 
