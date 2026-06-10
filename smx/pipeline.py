@@ -23,7 +23,7 @@ from smx.zones.extraction import extract_spectral_zones
 from smx.zones.aggregation import ZoneAggregator
 from smx.predicates.generation import PredicateGenerator
 from smx.predicates.bagging import PredicateBagger
-from smx.predicates.metrics import CovarianceMetric, PerturbationMetric
+from smx.predicates.metrics import PerturbationMetric
 from smx.graph.builder import PredicateGraphBuilder
 from smx.graph.centrality import compute_lrc, aggregate_lrc_across_seeds
 from smx.graph.interpretation import map_thresholds_to_natural
@@ -57,52 +57,36 @@ class SMX:
         per predicate is hardcoded to 20 % of the dataset.
     replace : bool, default False
         Whether to sample bags with replacement.
-    metric : {'covariance', 'perturbation'}, default 'perturbation'
-        Importance metric to use.
-    estimator : sklearn-compatible estimator, optional
-        Trained model required when ``metric='perturbation'``.
+    estimator : sklearn-compatible estimator, required
+        Trained model with a ``predict()`` method (and ``predict_proba()``
+        when using ``perturbation_metric='probability_shift'``). Supports
+        both binary and multi-class classifiers natively.
     perturbation_mode : str, default 'median'
         Replacement strategy for perturbation (``'constant'``, ``'mean'``,
         ``'median'``, ``'min'``, ``'max'``).
     perturbation_value : float, default 0
         Constant replacement value used when ``perturbation_mode='constant'``.
     perturbation_metric : str, default 'probability_shift'
-        Perturbation importance measure. Determines how the impact of
-        spectral zone perturbation is quantified. Choice depends on the
-        estimator type and the desired sensitivity:
+        Perturbation importance measure. Supported values for classification:
 
-        **Classification estimators** (with ``predict_proba``):
-
-        - ``'probability_shift'`` — Mean total variation distance between
-          pre- and post-perturbation class probabilities. Sensitive to
-          confidence changes across all classes. Requires ``predict_proba``.
+        - ``'probability_shift'`` — Mean Total Variation Distance between
+          pre- and post-perturbation class probability vectors. Works natively
+          with any number of classes K ≥ 2. Requires ``predict_proba()``.
+        - ``'prediction_change_rate'`` — Fraction of samples whose predicted
+          class label changes after perturbation.
         - ``'accuracy_drop'`` — Drop in accuracy when perturbed predictions
           are compared to original predictions.
         - ``'f1_drop'`` — Weighted F1-score decrease after perturbation.
         - ``'decision_function_shift'`` — Mean absolute change in decision
-          function values (e.g. signed distances from hyperplane for SVC).
-          Requires ``decision_function()``.
-
-        **Regression estimators** (with ``predict`` returning continuous values):
-
-        - ``'mean_abs_diff'`` — Mean absolute difference between original
-          and perturbed predictions.
-        - ``'mean_diff'`` — Mean signed difference (bias direction). Positive
-          values indicate perturbation increases predictions, negative decreases.
-        - ``'mean_relative_dev'`` — Mean relative deviation, normalized by
-          original prediction magnitude. Treats zero predictions as NaN.
+          function values. Requires ``decision_function()``.
     normalize_by_zone_size : bool, default True
         Divide raw perturbation importance by zone width.
     zone_size_exponent : float, default 1.0
         Exponent applied to zone size during normalisation.
-    covariance_threshold : float, default 0.01
-        Minimum covariance value to keep a predicate (covariance metric only).
     var_exp : bool, default True
         Weight graph edges by PC1 explained variance of the source zone.
     show_graph_details : bool, default False
         Print bidirectional-edge details during graph construction.
-    class_threshold : float, default 0.5
-        Decision boundary for ``Class_Predicted`` annotation on bags.
 
     Attributes (set after :meth:`fit`)
     ------------------------------------
@@ -144,7 +128,6 @@ class SMX:
         n_bags: int = 10,
         n_samples_fraction: float = 0.8,
         replace: bool = False,
-        metric: Literal["covariance", "perturbation"] = "perturbation",
         estimator: Optional[Any] = None,
         perturbation_mode: str = "median",
         perturbation_value: float = 0,
@@ -152,15 +135,14 @@ class SMX:
         perturbation_stats_source: str = "full",
         normalize_by_zone_size: bool = True,
         zone_size_exponent: float = 1.0,
-        covariance_threshold: float = 0.01,
         var_exp: bool = True,
         show_graph_details: bool = False,
-        class_threshold: float = 0.5,
     ) -> None:
-        if metric not in ("covariance", "perturbation"):
-            raise ValueError(f"metric must be 'covariance' or 'perturbation', got '{metric}'.")
-        if metric == "perturbation" and estimator is None:
-            raise ValueError("estimator is required when metric='perturbation'.")
+        if estimator is None:
+            raise ValueError(
+                "estimator is required. Provide a trained sklearn-compatible model "
+                "with predict() and (for probability_shift) predict_proba() methods."
+            )
 
         self.spectral_cuts = spectral_cuts
         self.quantiles = quantiles
@@ -169,7 +151,6 @@ class SMX:
         self.n_bags = n_bags
         self.n_samples_fraction = n_samples_fraction
         self.replace = replace
-        self.metric = metric
         self.estimator = estimator
         self.perturbation_mode = perturbation_mode
         self.perturbation_value = perturbation_value
@@ -177,10 +158,8 @@ class SMX:
         self.perturbation_stats_source = perturbation_stats_source
         self.normalize_by_zone_size = normalize_by_zone_size
         self.zone_size_exponent = zone_size_exponent
-        self.covariance_threshold = covariance_threshold
         self.var_exp = var_exp
         self.show_graph_details = show_graph_details
-        self.class_threshold = class_threshold
 
         # Result attributes — populated by fit()
         self.lrc_natural_: Optional[pd.DataFrame] = None
@@ -202,7 +181,7 @@ class SMX:
     def fit(
         self,
         X_cal_prep: pd.DataFrame,
-        y_pred_cal: Union[pd.Series, np.ndarray],
+        y_class_labels: Union[pd.Series, np.ndarray, list],
         X_cal_natural: Optional[pd.DataFrame] = None,
     ) -> "SMX":
         """Run the full SMX explanation pipeline.
@@ -211,9 +190,12 @@ class SMX:
         ----------
         X_cal_prep : pd.DataFrame
             Pre-processed calibration spectra (samples × features).
-        y_pred_cal : pd.Series or np.ndarray
-            Continuous model predictions for the calibration set (aligned
-            with *X_cal_prep*).
+        y_class_labels : pd.Series, np.ndarray, or list
+            Class labels assigned by the trained estimator to each sample in the
+            calibration set. Must be aligned row-wise with *X_cal_prep*. Accepts
+            any hashable label type (integer class codes, string names, etc.).
+            Typically obtained as ``estimator.predict(X_cal_prep)``. Must contain
+            at least two distinct class labels.
         X_cal_natural : pd.DataFrame, optional
             Unpreprocessed calibration spectra with the same shape as
             *X_cal_prep*.  Required for ``lrc_natural_`` threshold mapping.
@@ -225,11 +207,22 @@ class SMX:
         -------
         self
         """
-        y_pred = (
-            pd.Series(y_pred_cal.values)
-            if isinstance(y_pred_cal, pd.Series)
-            else pd.Series(y_pred_cal)
-        )
+        # --- Validate and normalise class labels ---
+        y_class_labels = pd.Series(y_class_labels).astype(str).reset_index(drop=True)
+
+        if len(y_class_labels) != len(X_cal_prep):
+            raise ValueError(
+                f"y_class_labels length ({len(y_class_labels)}) must match "
+                f"X_cal_prep length ({len(X_cal_prep)})."
+            )
+
+        unique_classes = sorted(y_class_labels.unique().tolist())
+
+        if len(unique_classes) < 2:
+            raise ValueError(
+                f"y_class_labels must contain at least 2 distinct class labels. "
+                f"Got {len(unique_classes)}: {unique_classes}."
+            )
         n_cal = len(X_cal_prep)
 
         # ── Step 1: zone extraction + PCA aggregation ─────────────────────
@@ -250,8 +243,6 @@ class SMX:
         predicates_df = gen.predicates_df_
         self.predicates_df_ = predicates_df
 
-        metric_column = "Covariance" if self.metric == "covariance" else "Perturbation"
-
         # ── Step 3: seed loop ────────────────────────────────────────────
         lrc_by_seed: Dict[int, pd.DataFrame] = {}
         graphs_by_seed: Dict[int, nx.DiGraph] = {}
@@ -268,46 +259,41 @@ class SMX:
                 predicate_bagging=False,
                 random_seed=seed,
             )
-            bags = bagger.run(zone_scores, y_pred, predicates_df)
+            bags = bagger.run(zone_scores, predicates_df)
 
-            # Annotate bags with discrete class prediction
+            # Annotate each bag's predicate DataFrames with the true class label
+            # for the samples they contain, derived from y_class_labels.
             for pred_dict in bags.values():
                 for df_info in pred_dict.values():
-                    df_info["Class_Predicted"] = np.where(
-                        df_info["Predicted_Y"] >= self.class_threshold, "A", "B"
-                    )
+                    sample_indices = df_info["Sample_Index"].values
+                    df_info["Class_Predicted"] = y_class_labels.iloc[sample_indices].values
 
-            # 3b. Metric
-            logger.debug("Seed %d — computing %s metric…", seed, self.metric)
-            if self.metric == "covariance":
-                metric_obj = CovarianceMetric(
-                    metric="covariance",
-                    threshold=self.covariance_threshold,
-                )
-            else:
-                metric_obj = PerturbationMetric(
-                    estimator=self.estimator,
-                    Xcalclass_prep=X_cal_prep,
-                    predicates_df=predicates_df,
-                    spectral_cuts=self.spectral_cuts,
-                    perturbation_mode=self.perturbation_mode,
-                    perturbation_value=self.perturbation_value,
-                    stats_source=self.perturbation_stats_source,
-                    metric=self.perturbation_metric,
-                    normalize_by_zone_size=self.normalize_by_zone_size,
-                    zone_size_exponent=self.zone_size_exponent,
-                )
+            # 3b. Metric (perturbation-based)
+            logger.debug("Seed %d — computing perturbation metric…", seed)
+            metric_obj = PerturbationMetric(
+                estimator=self.estimator,
+                Xcalclass_prep=X_cal_prep,
+                predicates_df=predicates_df,
+                spectral_cuts=self.spectral_cuts,
+                perturbation_mode=self.perturbation_mode,
+                perturbation_value=self.perturbation_value,
+                stats_source=self.perturbation_stats_source,
+                metric=self.perturbation_metric,
+                normalize_by_zone_size=self.normalize_by_zone_size,
+                zone_size_exponent=self.zone_size_exponent,
+            )
             rankings = metric_obj.compute(bags)
 
             # 3c. Graph
             logger.debug("Seed %d — building predicate graph…", seed)
             builder = PredicateGraphBuilder(
+                class_labels=unique_classes,       # ← derived from y_class_labels
                 random_state=seed,
                 show_details=self.show_graph_details,
                 var_exp=self.var_exp,
                 pca_info_dict=pca_info if self.var_exp else None,
             )
-            graph = builder.build(bags, rankings, metric_column=metric_column)
+            graph = builder.build(bags, rankings)  # metric_column removed
             graphs_by_seed[seed] = graph
 
             # 3d. LRC
@@ -317,16 +303,16 @@ class SMX:
             ]
             if len(predicate_nodes) < 1 or graph.number_of_nodes() < 2:
                 logger.warning(
-                    "Seed %d produced an undersized graph (%s, nodes=%d, predicate_nodes=%d) — skipping.",
-                    seed, self.metric, graph.number_of_nodes(), len(predicate_nodes)
+                    "Seed %d produced an undersized graph (nodes=%d, predicate_nodes=%d) — skipping.",
+                    seed, graph.number_of_nodes(), len(predicate_nodes)
                 )
                 continue
 
             lrc_df_seed = compute_lrc(graph, predicates_df)
             if lrc_df_seed.empty:
                 logger.warning(
-                    "Seed %d produced an empty LRC table after graph processing (%s) — skipping.",
-                    seed, self.metric,
+                    "Seed %d produced an empty LRC table after graph processing — skipping.",
+                    seed,
                 )
                 continue
             lrc_df_seed["Seed"] = seed
@@ -334,8 +320,9 @@ class SMX:
 
         if not lrc_by_seed:
             raise RuntimeError(
-                f"All seeds produced empty graphs for metric='{self.metric}'. "
-                "The model predictions may be degenerate (e.g. all on one side)."
+                "All seeds produced empty graphs. "
+                "Check that y_class_labels contains enough samples per class and that "
+                "the perturbation metric is compatible with the estimator."
             )
 
         self.graphs_by_seed_ = graphs_by_seed

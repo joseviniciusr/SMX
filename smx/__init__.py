@@ -12,11 +12,17 @@ Typical usage
 >>> gen = smx.PredicateGenerator(quantiles=[0.25, 0.5, 0.75])
 >>> gen.fit(scores_df)
 >>> bagger = smx.PredicateBagger()
->>> bags = bagger.run(scores_df, y_pred, gen.predicates_df_)
->>> metric = smx.CovarianceMetric(threshold=0.01)
+>>> bags = bagger.run(scores_df, gen.predicates_df_)
+>>> metric = smx.PerturbationMetric(
+...     estimator=model,
+...     Xcalclass_prep=X_cal_prep,
+...     predicates_df=gen.predicates_df_,
+...     spectral_cuts=cuts,
+...     metric="probability_shift",
+... )
 >>> rankings = metric.compute(bags)
->>> builder = smx.PredicateGraphBuilder()
->>> graph = builder.build(bags, rankings, metric_column='Covariance')
+>>> builder = smx.PredicateGraphBuilder(class_labels=["A", "B", "C"])
+>>> graph = builder.build(bags, rankings)
 >>> lrc_df = smx.compute_lrc(graph, gen.predicates_df_)
 """
 
@@ -35,7 +41,6 @@ from smx.predicates.generation import PredicateGenerator
 from smx.predicates.bagging import PredicateBagger
 from smx.predicates.metrics import (
     BasePredicateMetric,
-    CovarianceMetric,
     PerturbationMetric,
 )
 from smx.graph.builder import PredicateGraphBuilder
@@ -71,7 +76,6 @@ __all__ = [
     "PredicateBagger",
     # metrics
     "BasePredicateMetric",
-    "CovarianceMetric",
     "PerturbationMetric",
     # graph
     "PredicateGraphBuilder",
