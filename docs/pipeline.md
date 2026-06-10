@@ -24,8 +24,8 @@ single `fit()` call. It orchestrates:
 
 After `fit()`, the most used attributes are:
 
-- `lrc_summed_`: mean LRC ranking across seeds
-- `lrc_summed_unique_`: one row per zone, sorted by LRC
+- `lrc_`: mean LRC ranking across seeds
+- `lrc_unique_`: one row per zone, sorted by LRC
 - `lrc_natural_`: thresholds mapped back to natural units
 - `zone_scores_`: PCA scores per zone
 - `predicates_df_`: full predicate catalog
@@ -46,5 +46,5 @@ smx = SMX(
 )
 
 smx.fit(X_cal_prep, y_pred_cal, X_cal_natural=X_cal)
-print(smx.lrc_summed_unique_.head())
+print(smx.lrc_unique_.head())
 ```

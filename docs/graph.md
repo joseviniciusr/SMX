@@ -23,7 +23,7 @@ lrc_df = compute_lrc(graph, predicates_df)
 When multiple seeds are used, aggregate their LRC rankings:
 
 ```python
-lrc_summed, lrc_unique = aggregate_lrc_across_seeds(lrc_by_seed, random_seeds)
+lrc, lrc_unique = aggregate_lrc_across_seeds(lrc_by_seed, random_seeds)
 ```
 
 ## Map thresholds back to natural units
@@ -35,7 +35,7 @@ to natural spectral units:
 from smx import map_thresholds_to_natural
 
 lrc_natural = map_thresholds_to_natural(
-    lrc_df=lrc_summed,
+    lrc_df=lrc,
     zone_sums_preprocessed=zone_scores,
     zone_sums_natural=zone_scores_natural,
 )

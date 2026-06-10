@@ -306,7 +306,7 @@ You can also call the standalone plotting function:
 from smx import plot_zone_ranking_over_spectrum
 
 plot_zone_ranking_over_spectrum(
-    zone_ranking_df=explainer.lrc_summed_unique_,
+    zone_ranking_df=explainer.lrc_unique_,
     spectral_cuts=spectral_cuts,
     reference_spectrum=explainer.zones_natural_,
     output_path="zone_ranking.png",   # or .html

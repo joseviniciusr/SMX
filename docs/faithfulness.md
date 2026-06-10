@@ -27,7 +27,7 @@ result = progressive_masking_faithfulness(
     estimator=model,
     X_eval=X_test_prep,
     spectral_cuts=spectral_cuts,
-    ranking_df=smx.lrc_summed_unique_,
+    ranking_df=smx.lrc_unique_,
     masking_strategy="mean",
 )
 ```

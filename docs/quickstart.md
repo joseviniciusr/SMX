@@ -67,7 +67,7 @@ y_pred_cal = pd.Series(model.predict_proba(X_cal_prep)[:, class_a_idx])
 smx.fit(X_cal_prep, y_pred_cal, X_cal_natural=X_cal)
 
 # 6) Inspect the ranked zones
-print(smx.lrc_summed_unique_.head())
+print(smx.lrc_unique_.head())
 ```
 
 ## Plot a ranking over the spectrum
