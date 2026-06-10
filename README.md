@@ -195,7 +195,7 @@ perturbation_metric="probability_shift" # metric for evaluating predicate releva
 )
 
 smx.fit(X_cal_prep = X_cal_prep, # preprocessed calibration spectra for predicate evaluation
-        y_pred_cal = model.predict_proba(X_cal_prep)[:, 0],  # predicted probabilities for classes (it can be either 0 or 1) for building the terminal nodes 
+        y_class_labels = model.predict(X_cal_prep),  # class labels predicted by the trained model (any K >= 2)
         X_cal_natural = X_cal_natural # natural-scale calibration spectra mapped back to the original domain
         ) 
 
@@ -284,7 +284,7 @@ from smx import SMX
 
 explainer=SMX(...) # SMX instance after fitting (see easy usage for example)
 
-explainer.fit(X_cal_prep, y_pred_cal, X_cal_natural=X_cal_raw)
+explainer.fit(X_cal_prep, model.predict(X_cal_prep), X_cal_natural=X_cal_raw)
 
 # Interactive HTML
 explainer.plot_zone_ranking_over_spectrum("zone_ranking.html", ranking="unique")
