@@ -6,11 +6,10 @@ interface so they can be swapped transparently in the SMX pipeline.
 
 Available metrics
 -----------------
-* :class:`CovarianceMetric` — covariance (or mutual information) between
-  zone scores and model predictions within each predicate bag.
 * :class:`PerturbationMetric` — perturbation-based importance: replace the
   spectral zone of each predicate with a constant/statistic value and measure
-  the impact on model predictions.
+  the impact on model predictions. Supports binary and multi-class classifiers
+  natively via the Total Variation Distance (``probability_shift``).
 """
 
 from __future__ import annotations
@@ -51,114 +50,6 @@ class BasePredicateMetric(ABC):
             ``{'Bag_1': DataFrame(['Predicate', MetricName]), ...}``
             Each inner DataFrame is sorted descending by the metric column.
         """
-
-
-# ---------------------------------------------------------------------------
-# Covariance / Mutual Information metric
-# ---------------------------------------------------------------------------
-
-
-class CovarianceMetric(BasePredicateMetric):
-    """Association metric between zone scores and model predictions.
-
-    Supports two association measures:
-
-    * ``'covariance'`` — absolute covariance between zone aggregation values
-      and continuous model predictions (linear dependency).
-    * ``'mutual_info'`` — mutual information (captures non-linear dependencies,
-      requires ``scikit-learn``).
-
-    Parameters
-    ----------
-    metric : {'covariance', 'mutual_info'}, default 'covariance'
-        Association measure to compute.
-    threshold : float, default 0.01
-        Predicates with metric value ≤ threshold are excluded from the result.
-    n_neighbors : int, default 10
-        Number of nearest neighbours for mutual information estimation.
-        Ignored when ``metric='covariance'``.
-    """
-
-    _METRIC_COL_NAMES = {
-        "covariance": "Covariance",
-        "mutual_info": "Mutual_Info",
-    }
-
-    def __init__(
-        self,
-        metric: Literal["covariance", "mutual_info"] = "covariance",
-        threshold: float = 0.01,
-        n_neighbors: int = 10,
-    ) -> None:
-        if metric not in self._METRIC_COL_NAMES:
-            raise ValueError(
-                f"metric must be one of {list(self._METRIC_COL_NAMES)}. Got '{metric}'."
-            )
-        self.metric = metric
-        self.threshold = threshold
-        self.n_neighbors = n_neighbors
-
-    @property
-    def metric_column(self) -> str:
-        return self._METRIC_COL_NAMES[self.metric]
-
-    def compute(self, bags_dict: Dict[str, Dict[str, pd.DataFrame]]) -> Dict[str, pd.DataFrame]:
-        """Compute the association metric for each predicate in each bag.
-
-        Parameters
-        ----------
-        bags_dict : dict
-            Bags as returned by :class:`smx.predicates.bagging.PredicateBagger`.
-
-        Returns
-        -------
-        dict[str, pd.DataFrame]
-            Keys = bag names.  Each DataFrame has columns
-            ``['Predicate', 'Covariance']`` (or ``'Mutual_Info'``),
-            sorted descending by the metric, filtered by *threshold*.
-        """
-        if self.metric == "mutual_info":
-            from sklearn.feature_selection import mutual_info_regression
-
-        results: Dict[str, pd.DataFrame] = {}
-
-        for bag_name, predicates_dict in bags_dict.items():
-            if not predicates_dict:
-                continue
-
-            metrics: Dict[str, float] = {}
-            for rule, df_info in predicates_dict.items():
-                X_zone = df_info["Zone_Sum"].values.reshape(-1, 1)
-                y_pred = df_info["Predicted_Y"].values
-
-                if len(X_zone) < 2:
-                    metrics[rule] = 0.0
-                    continue
-
-                if self.metric == "covariance":
-                    cov_mat = np.cov(X_zone.flatten(), y_pred)
-                    metrics[rule] = float(np.abs(cov_mat[0, 1]))
-                else:  # mutual_info
-                    mi = mutual_info_regression(
-                        X_zone,
-                        y_pred,
-                        discrete_features=False,
-                        n_neighbors=self.n_neighbors,
-                        random_state=42,
-                    )
-                    metrics[rule] = float(mi[0])
-
-            metrics_df = (
-                pd.DataFrame.from_dict(metrics, orient="index", columns=[self.metric_column])
-                .rename_axis(None)
-                .reset_index()
-                .rename(columns={"index": "Predicate"})
-            )
-            metrics_df = metrics_df.sort_values(self.metric_column, ascending=False).reset_index(drop=True)
-            metrics_df = metrics_df[metrics_df[self.metric_column] > self.threshold].reset_index(drop=True)
-            results[bag_name] = metrics_df
-
-        return results
 
 
 # ---------------------------------------------------------------------------
