@@ -8,6 +8,7 @@ from smx.plotting.summary import (
     plot_all_thresholds_overlay,
     plot_faithfulness_curve,
 )
+from smx.plotting._colors import get_class_color_map, resolve_color
 
 __all__ = [
     "DEFAULT_THEME",
@@ -20,4 +21,6 @@ __all__ = [
     "plot_zone_scores",
     "plot_all_thresholds_overlay",
     "plot_faithfulness_curve",
+    "get_class_color_map",
+    "resolve_color",
 ]
