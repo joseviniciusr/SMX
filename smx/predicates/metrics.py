@@ -8,8 +8,14 @@ Available metrics
 -----------------
 * :class:`PerturbationMetric` — perturbation-based importance: replace the
   spectral zone of each predicate with a constant/statistic value and measure
-  the impact on model predictions. Supports binary and multi-class classifiers
-  natively via the Total Variation Distance (``probability_shift``).
+  the impact on model predictions. Supports:
+
+  - **Classification** (binary and multi-class K ≥ 2) — five metrics including
+    ``probability_shift`` (Total Variation Distance, the multi-class default),
+    ``prediction_change_rate``, ``accuracy_drop``, ``f1_drop`` and
+    ``decision_function_shift``.
+  - **Regression** — three metrics: ``mean_abs_diff`` (the regression
+    default), ``mean_diff`` and ``mean_relative_dev``.
 """
 
 from __future__ import annotations
@@ -153,8 +159,30 @@ class PerturbationMetric(BasePredicateMetric):
     stats_source : {'full', 'predicate'}, default 'full'
         Data source for computing per-column statistics.
     metric : str, default 'mean_abs_diff'
-        Importance metric. See :class:`smx.predicates.metrics.PerturbationMetric`
-        docstring for available options per *aim*.
+        Importance metric. Choice depends on the estimator type and the
+        desired sensitivity:
+
+        **Classification estimators** (with ``predict_proba``):
+
+        - ``'probability_shift'`` — Mean Total Variation Distance between
+          pre- and post-perturbation class probability vectors. Works
+          natively with any number of classes K ≥ 2. Requires ``predict_proba()``.
+        - ``'prediction_change_rate'`` — Fraction of samples whose predicted
+          class label changes after perturbation.
+        - ``'accuracy_drop'`` — Drop in accuracy when perturbed predictions
+          are compared to original predictions.
+        - ``'f1_drop'`` — Weighted F1-score decrease after perturbation.
+        - ``'decision_function_shift'`` — Mean absolute change in decision
+          function values. Requires ``decision_function()``.
+
+        **Regression estimators** (with ``predict`` returning continuous values):
+
+        - ``'mean_abs_diff'`` — Mean absolute difference between original
+          and perturbed predictions.
+        - ``'mean_diff'`` — Mean signed difference (bias direction). Positive
+          values indicate perturbation increases predictions, negative decreases.
+        - ``'mean_relative_dev'`` — Mean relative deviation, normalized by
+          original prediction magnitude. Treats zero predictions as NaN.
     normalize_by_zone_size : bool, default False
         Divide raw importance by the number of zone features (raised to
         *zone_size_exponent*) to compensate for wide-zone bias.

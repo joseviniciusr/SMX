@@ -67,18 +67,34 @@ class SMX:
     perturbation_value : float, default 0
         Constant replacement value used when ``perturbation_mode='constant'``.
     perturbation_metric : str, default 'probability_shift'
-        Perturbation importance measure. Supported values for classification:
+        Perturbation importance measure. Determines how the impact of
+        spectral zone perturbation is quantified. Choice depends on the
+        estimator type and the desired sensitivity:
 
-        - ``'probability_shift'`` — Mean Total Variation Distance between
-          pre- and post-perturbation class probability vectors. Works natively
-          with any number of classes K ≥ 2. Requires ``predict_proba()``.
+        **Classification estimators** (with ``predict_proba``):
+
+        - ``'probability_shift'`` — Mean total variation distance between
+          pre- and post-perturbation class probabilities. Sensitive to
+          confidence changes across all classes. Works natively with any
+          number of classes K ≥ 2 via the Total Variation Distance. Requires
+          ``predict_proba()``.
         - ``'prediction_change_rate'`` — Fraction of samples whose predicted
           class label changes after perturbation.
         - ``'accuracy_drop'`` — Drop in accuracy when perturbed predictions
           are compared to original predictions.
         - ``'f1_drop'`` — Weighted F1-score decrease after perturbation.
         - ``'decision_function_shift'`` — Mean absolute change in decision
-          function values. Requires ``decision_function()``.
+          function values (e.g. signed distances from hyperplane for SVC).
+          Requires ``decision_function()``.
+
+        **Regression estimators** (with ``predict`` returning continuous values):
+
+        - ``'mean_abs_diff'`` — Mean absolute difference between original
+          and perturbed predictions.
+        - ``'mean_diff'`` — Mean signed difference (bias direction). Positive
+          values indicate perturbation increases predictions, negative decreases.
+        - ``'mean_relative_dev'`` — Mean relative deviation, normalized by
+          original prediction magnitude. Treats zero predictions as NaN.
     normalize_by_zone_size : bool, default True
         Divide raw perturbation importance by zone width.
     zone_size_exponent : float, default 1.0
