@@ -1,14 +1,13 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/joseviniciusr/SMX/2e0fee9bd9f18786d33d5250233ddb5006dbd2a1/SMX_final_logo.png" alt="SMX logo" width="560">
-</p>
-
-
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python Versions](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue.svg)](pyproject.toml)
 [![PyPI](https://img.shields.io/pypi/v/spectral-model-explainer.svg)](https://pypi.org/project/spectral-model-explainer/)
 [![Build Status](https://github.com/joseviniciusr/SMX/actions/workflows/release.yml/badge.svg)](https://github.com/joseviniciusr/SMX/actions/workflows/release.yml)
 [![Documentation Status](https://readthedocs.org/projects/spectral-model-explainer/badge/?version=latest)](https://spectral-model-explainer.readthedocs.io/en/latest/)
 
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/joseviniciusr/SMX/2e0fee9bd9f18786d33d5250233ddb5006dbd2a1/SMX_final_logo.png" alt="SMX logo" width="560">
+</p>
 
 This is the official repository for the `spectral-model-explainer` (SMX) library, an eXplainable AI tool designed to provide explanations for Machine Learning (ML) models trained on spectral data (*e.g.*, XRF, GRS, Raman, vis-NIR, and related modalities).
 
