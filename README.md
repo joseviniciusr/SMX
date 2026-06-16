@@ -30,6 +30,11 @@ The high-level workflow is implemented in the `SMX` pipeline class and can also 
 6. directed graph construction
 7. centrality-based ranking and optional mapping back to natural scale
 
+<p align="center">
+  <img src="assets/method_overview.png" alt="SMX method overview" width="100%">
+</p>
+
+
 This implementation allows both:
 
 - end-to-end execution through a single pipeline object
