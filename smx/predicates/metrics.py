@@ -194,7 +194,9 @@ class PerturbationMetric(BasePredicateMetric):
         Attach a ``'__detailed_perturbation_results__'`` key to the result.
     """
 
-    _REGRESSION_METRICS = {"mean_abs_diff", "mean_diff", "mean_relative_dev"}
+    _REGRESSION_METRICS = {"mean_abs_diff",
+                           "mean_diff",
+                           "mean_relative_dev"}
     _CLASSIFICATION_METRICS = {
         "prediction_change_rate",
         "accuracy_drop",
