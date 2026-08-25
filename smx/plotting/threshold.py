@@ -132,7 +132,7 @@ def plot_threshold_spectrum(
     fig.update_layout(
         **theme.plotly_layout(
             title=f"Zone '{zone_name}' — Multivariate Threshold (Predicate: {node_natural})",
-            xaxis_title="ESpectral variables",
+            xaxis_title="Spectral variables",
             yaxis_title="Intensity",
             showlegend=True,
             legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
