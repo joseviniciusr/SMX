@@ -23,7 +23,29 @@ FaithfulnessMetric = Literal[
     "probability_shift",
     "mean_abs_diff",
     "decision_function_shift",
+    "calibration_invariant",
 ]
+
+
+def faithfulness_level_from_percentile(percentile: float) -> str:
+    """Map a null-ranking percentile to the SMX categorical level.
+
+    The thresholds intentionally match the existing SMX implementation so
+    legacy and NAOPC results use the same label contract. ``Moderate`` is the
+    middle label used by the code and plotting documentation (and is
+    equivalent to the informal ``Medium`` wording used in some discussions).
+    ``Unavailable`` is returned when a score cannot be formed, for example
+    when every NAOPC bound is degenerate.
+    """
+    if not np.isfinite(percentile):
+        return "Unavailable"
+    if percentile < 60.0:
+        return "Low"
+    if percentile < 80.0:
+        return "Moderate"
+    if percentile < 95.0:
+        return "High"
+    return "Very High"
 
 
 def _prepare_zone_ranking(
@@ -55,6 +77,15 @@ def _prepare_zone_ranking(
 
 def _infer_metric(metric: FaithfulnessMetric, estimator: Any) -> str:
     """Infer the masking score metric from the estimator interface."""
+    if metric == "calibration_invariant":
+        if not hasattr(estimator, "decision_function"):
+            raise ValueError(
+                "Faithfulness metric 'calibration_invariant' requires an "
+                "estimator with decision_function()."
+            )
+        # Positive affine changes to a decision margin scale both the observed
+        # AOPC and its attainable bounds equally, so NAOPC is unchanged.
+        return "decision_function_shift"
     if metric != "auto":
         return metric
     if hasattr(estimator, "predict_proba"):
@@ -257,14 +288,7 @@ def progressive_masking_faithfulness(
         null_auc_array = np.asarray([], dtype=float)
         percentile = 100.0
 
-    if percentile < 60.0:
-        level = "Low"
-    elif percentile < 80.0:
-        level = "Moderate"
-    elif percentile < 95.0:
-        level = "High"
-    else:
-        level = "Very High"
+    level = faithfulness_level_from_percentile(percentile)
 
     return {
         "curve_df": curve_df,

@@ -86,6 +86,7 @@ def run(args: argparse.Namespace) -> dict:
         ranking="unique",
         X_reference=X_cal_prep,
         masking_strategy=args.masking_strategy,
+        metric=args.metric,
         n_random_rankings=args.n_random_rankings,
         random_state=seed,
     )
@@ -97,6 +98,7 @@ def run(args: argparse.Namespace) -> dict:
         ranking="unique",
         X_reference=X_cal_prep,
         masking_strategy=args.masking_strategy,
+        metric=args.metric,
         normalization=args.normalization,
         beam_size=args.beam_size,
         exact_max_zones=args.exact_max_zones,
@@ -115,6 +117,7 @@ def run(args: argparse.Namespace) -> dict:
         "dataset": args.dataset,
         "model": args.model,
         "masking_strategy": args.masking_strategy,
+        "faithfulness_metric": args.metric,
         "seed": seed,
         "n_cal": len(X_cal_prep),
         "n_test": len(X_test_prep),
@@ -128,6 +131,8 @@ def run(args: argparse.Namespace) -> dict:
         "aopc": float(normalized["aopc"]),
         "naopc_lower_bound": float(normalized["lower_bound"]),
         "naopc_upper_bound": float(normalized["upper_bound"]),
+        "naopc_null_percentile": float(normalized["null_percentile"]),
+        "naopc_level": normalized["level"],
         "normalization": normalized["normalization"],
         "beam_size": normalized["beam_size"],
         "n_zones": normalized["n_zones"],
@@ -150,6 +155,7 @@ def main() -> None:
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--model", choices=["pls", "mlp", "svm"], default="svm")
     parser.add_argument("--masking-strategy", choices=["zero", "mean", "median"], default="zero")
+    parser.add_argument("--metric", choices=["auto", "probability_shift", "mean_abs_diff", "decision_function_shift", "calibration_invariant"], default="auto")
     parser.add_argument("--normalization", choices=["auto", "exact", "beam"], default="auto")
     parser.add_argument("--beam-size", type=int, default=5)
     parser.add_argument("--exact-max-zones", type=int, default=9)

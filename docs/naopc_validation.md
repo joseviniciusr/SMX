@@ -1,6 +1,6 @@
 # NAOPC validation log
 
-This log records the first validation pass of the `research/naopc` fork.
+This log records the validation history of the `research/naopc` branch and the merge-request proposal.
 Results were collected on 2026-09-23 from commit `556a05e` plus the local
 NAOPC changes.
 
@@ -49,7 +49,7 @@ than the default nine exact zones.
 
 ## Tests and beam convergence
 
-The fork test suite currently passes **9 tests**. It covers exact bounds,
+The fork test suite currently passes **12 tests**. It covers exact bounds,
 brute-force equivalence, beam equivalence when the beam is complete,
 multiclass and binary `decision_function`, degenerate bounds, the pipeline
 facade, and legacy API availability.
@@ -61,7 +61,7 @@ maximum absolute NAOPC error of approximately 0.0037; `beam_size=10` matched
 the exact result for the nine-zone case. This is evidence for continued
 benchmarking, not yet a universal default recommendation.
 
-## Remaining validation
+## Earlier validation checklist
 
 - Run the same comparison on the existing SMX real datasets and model types.
 - Repeat with every masking strategy already supported by SMX.
@@ -92,3 +92,26 @@ not yet general claims across the full dataset collection.
 The real benchmark also exposed and fixed a boundary-overlap bug: when two
 adjacent spectral cuts include the same boundary column, NAOPC now deduplicates
 that column before assignment, matching the legacy protocol.
+
+## Definitive external validation
+
+The final validation used the same configured PLS, MLP, and SVM real-data
+protocol and compared each SMX ranking with an independent leave-one-zone-out
+retraining oracle. For each zone, the zone was removed from calibration and test
+data, the model was retrained, and the held-out log-loss increase was measured.
+The external percentile used 500 random zone rankings and the same categorical
+thresholds as the API.
+
+| Method | Exact agreement with oracle | Mean ordinal error |
+|---|---:|---:|
+| Original SMX faithfulness | 12/39 (30.8%) | 1.38 |
+| NAOPC | 16/39 (41.0%) | 1.23 |
+
+NAOPC produced four matches that the original method missed, with no
+original-only matches. This is evidence in favor of NAOPC for cross-model
+comparisons, not evidence that every NAOPC label is correct: both methods
+overassigned Very High relative to the external oracle. The aggregate oracle results above are retained as the validation summary; the raw runner and generated outputs are intentionally not part of this API merge request.
+
+The independent test also confirmed calibration invariance in the controlled
+benchmark: the largest NAOPC change under positive score rescaling was below
+2.3e-16.

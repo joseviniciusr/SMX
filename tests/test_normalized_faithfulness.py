@@ -254,3 +254,69 @@ def test_overlapping_zone_boundaries_do_not_duplicate_masked_columns():
 
     assert result["n_zones"] == 2
     assert np.isfinite(result["naopc"])
+
+
+
+class ScaledDecisionProbabilityModel:
+    classes_ = np.array([0, 1])
+
+    def __init__(self, scale):
+        self.scale = float(scale)
+
+    def decision_function(self, X):
+        values = X.to_numpy(dtype=float)
+        return self.scale * (4.0 * values[:, 0] + 3.0 * values[:, 1] + 2.0 * values[:, 2] + values[:, 3])
+
+    def predict_proba(self, X):
+        logits = np.clip(self.decision_function(X), -60.0, 60.0)
+        positive = 1.0 / (1.0 + np.exp(-logits))
+        return np.column_stack([1.0 - positive, positive])
+
+    def predict(self, X):
+        return (self.decision_function(X) >= 0.0).astype(int)
+
+
+def test_calibration_invariant_naopc_is_stable_under_positive_margin_scaling():
+    X, cuts = _toy_inputs()
+    ranking = _ranking(["z1", "z2", "z3", "z4"])
+    low_scale = normalized_progressive_masking_faithfulness(
+        ScaledDecisionProbabilityModel(0.5),
+        X,
+        cuts,
+        ranking,
+        metric="calibration_invariant",
+        normalization="exact",
+        n_random_rankings=16,
+        random_state=11,
+    )
+    high_scale = normalized_progressive_masking_faithfulness(
+        ScaledDecisionProbabilityModel(5.0),
+        X,
+        cuts,
+        ranking,
+        metric="calibration_invariant",
+        normalization="exact",
+        n_random_rankings=16,
+        random_state=11,
+    )
+
+    assert low_scale["metric"] == "decision_function_shift"
+    assert np.isclose(low_scale["naopc"], high_scale["naopc"])
+    assert np.isclose(low_scale["null_percentile"], high_scale["null_percentile"])
+
+
+def test_naopc_returns_legacy_compatible_level_and_null_distribution():
+    X, cuts = _toy_inputs()
+    result = normalized_progressive_masking_faithfulness(
+        AdditiveProbabilityModel([4, 3, 2, 1]),
+        X,
+        cuts,
+        _ranking(["z1", "z2", "z3", "z4"]),
+        normalization="exact",
+        n_random_rankings=16,
+        random_state=11,
+    )
+
+    assert result["level"] in {"Low", "Moderate", "High", "Very High"}
+    assert 0.0 <= result["null_percentile"] <= 100.0
+    assert len(result["null_naopc_distribution"]) == 16

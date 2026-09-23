@@ -18,6 +18,7 @@ import pandas as pd
 from smx.evaluation.faithfulness import (
     FaithfulnessMetric,
     MaskingStrategy,
+    faithfulness_level_from_percentile,
     _compute_reference_fill_values,
     _infer_metric,
     _prepare_zone_ranking,
@@ -292,6 +293,8 @@ def normalized_progressive_masking_faithfulness(
     normalization: NormalizationMode = "auto",
     beam_size: int = 5,
     exact_max_zones: int = 9,
+    n_random_rankings: int = 100,
+    random_state: Optional[int] = 42,
 ) -> Dict[str, Any]:
     """Evaluate SMX faithfulness with model/input-specific NAOPC bounds.
 
@@ -409,6 +412,31 @@ def normalized_progressive_masking_faithfulness(
     bound_width = upper - lower
     tolerance = np.finfo(float).eps * np.maximum(1.0, np.maximum(np.abs(lower), np.abs(upper))) * 32
     valid = bound_width > tolerance
+
+    # Build a null distribution using the same normalized scale. This keeps
+    # the categorical label comparable to legacy SMX: it describes how much
+    # better the supplied ranking is than random orderings, while NAOPC itself
+    # remains a continuous attainable-bounds score.
+    null_naopc_distribution = []
+    rng = np.random.default_rng(random_state)
+    for _ in range(max(0, int(n_random_rankings))):
+        mask = 0
+        random_deltas = []
+        for bit in rng.permutation(n_zones):
+            mask |= 1 << int(bit)
+            random_deltas.append(
+                _aopc_delta(
+                    original_scores,
+                    get_subset_scores(mask),
+                    absolute_shift=absolute_shift,
+                )
+            )
+        random_aopc = _compute_aopc(np.vstack(random_deltas))
+        random_naopc = np.full(len(random_aopc), np.nan, dtype=float)
+        random_naopc[valid] = (random_aopc[valid] - lower[valid]) / bound_width[valid]
+        if np.any(np.isfinite(random_naopc)):
+            null_naopc_distribution.append(float(np.nanmean(random_naopc)))
+
     naopc = np.full(len(observed_aopc), np.nan, dtype=float)
     naopc[valid] = (observed_aopc[valid] - lower[valid]) / bound_width[valid]
     degenerate = ~valid
@@ -434,9 +462,23 @@ def normalized_progressive_masking_faithfulness(
     )
     naopc_mean = float(np.nanmean(naopc)) if np.any(np.isfinite(naopc)) else float("nan")
     aopc_mean = float(np.mean(observed_aopc))
+    if np.isfinite(naopc_mean):
+        if null_naopc_distribution:
+            null_array = np.asarray(null_naopc_distribution, dtype=float)
+            null_percentile = float(100.0 * np.mean(null_array <= naopc_mean))
+        else:
+            null_percentile = 100.0
+    else:
+        null_percentile = float("nan")
+    level = faithfulness_level_from_percentile(null_percentile)
     result = {
+        "method": "NAOPC",
         "aopc": aopc_mean,
         "naopc": naopc_mean,
+        "level": level,
+        "null_percentile": null_percentile,
+        "null_naopc_distribution": np.asarray(null_naopc_distribution, dtype=float),
+        "n_random_rankings": int(max(0, n_random_rankings)),
         "lower_bound": float(np.mean(lower)),
         "upper_bound": float(np.mean(upper)),
         "normalization": method,

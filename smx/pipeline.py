@@ -390,6 +390,7 @@ class SMX:
             "probability_shift",
             "mean_abs_diff",
             "decision_function_shift",
+            "calibration_invariant",
         ] = "auto",
         masking_strategy: Literal["zero", "constant", "mean", "median", "min", "max"] = "zero",
         constant_value: float = 0.0,
@@ -510,6 +511,7 @@ class SMX:
             "probability_shift",
             "mean_abs_diff",
             "decision_function_shift",
+            "calibration_invariant",
         ] = "auto",
         masking_strategy: Literal["zero", "constant", "mean", "median", "min", "max"] = "zero",
         constant_value: float = 0.0,
@@ -517,6 +519,8 @@ class SMX:
         normalization: Literal["auto", "exact", "beam"] = "auto",
         beam_size: int = 5,
         exact_max_zones: int = 9,
+        n_random_rankings: int = 100,
+        random_state: Optional[int] = 42,
     ) -> Dict[str, Any]:
         """Evaluate faithfulness with model/input-specific NAOPC bounds.
 
@@ -564,6 +568,8 @@ class SMX:
             normalization=normalization,
             beam_size=beam_size,
             exact_max_zones=exact_max_zones,
+            n_random_rankings=n_random_rankings,
+            random_state=random_state,
         )
         result["ranking_source"] = ranking
         self.normalized_faithfulness_ = result
