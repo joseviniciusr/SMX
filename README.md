@@ -372,6 +372,30 @@ print(f"AUC: {faithfulness['auc']:.4f} | Level: {faithfulness['level']} | "
 
 ![SMX faithfulness curve — progressive zone masking](https://raw.githubusercontent.com/joseviniciusr/SMX/b17acb2ab91156a4aa2b4dd6c7ef5c1b303b892a/assets/faithfulness_curve.png)
 
+### Normalized AOPC (experimental fork feature)
+
+The fork also provides `evaluate_normalized_faithfulness` as a complementary
+evaluation. It keeps the originally predicted class fixed for each sample and
+normalizes its AOPC by the model/input-specific attainable lower and upper
+bounds. `normalization="auto"` uses exact bounds for up to nine zones and a
+deterministic beam approximation above that threshold.
+
+```python
+normalized = smx.evaluate_normalized_faithfulness(
+    X_test_prep,
+    ranking="unique",
+    masking_strategy="zero",
+    metric="auto",
+    normalization="auto",
+    beam_size=5,
+    exact_max_zones=9,
+)
+print(f"NAOPC: {normalized['naopc']:.4f}")
+```
+
+The legacy `evaluate_faithfulness` remains the official existing protocol;
+NAOPC is an additional method for controlled investigation and comparison.
+
 For a complete, executable walkthrough with synthetic data and visualization outputs, see the quickstart notebook:
 
 [examples/quickstart.ipynb](https://github.com/joseviniciusr/SMX/blob/b17acb2ab91156a4aa2b4dd6c7ef5c1b303b892a/examples/quickstart.ipynb)

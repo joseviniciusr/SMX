@@ -29,6 +29,7 @@
 - Directed predicate graph with Local Reaching Centrality (LRC)
 - Natural-scale threshold reconstruction and Plotly visuals
 - Faithfulness evaluation with progressive masking
+- Optional target-class NAOPC evaluation with exact or beam normalization
 
 ::::{grid} 3
 :::{grid-item-card} Quickstart
@@ -82,6 +83,8 @@ zones
 predicates
 graph
 faithfulness
+naopc
+naopc_validation
 plotting
 datasets
 examples

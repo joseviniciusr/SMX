@@ -28,6 +28,9 @@ from smx.graph.builder import PredicateGraphBuilder
 from smx.graph.centrality import compute_lrc, aggregate_lrc_across_seeds
 from smx.graph.interpretation import map_thresholds_to_natural
 from smx.evaluation.faithfulness import progressive_masking_faithfulness
+from smx.evaluation.normalized_faithfulness import (
+    normalized_progressive_masking_faithfulness,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +197,7 @@ class SMX:
         self.graphs_by_seed_: Dict[int, nx.DiGraph] = {}
         self.valid_seeds_: List[int] = []
         self.faithfulness_: Optional[Dict[str, Any]] = None
+        self.normalized_faithfulness_: Optional[Dict[str, Any]] = None
 
     # ------------------------------------------------------------------
     # Public interface
@@ -493,6 +497,76 @@ class SMX:
             )
             result["plot_path"] = str(output_path)
         self.faithfulness_ = result
+        return result
+
+    def evaluate_normalized_faithfulness(
+        self,
+        X_eval: pd.DataFrame,
+        *,
+        ranking: Literal["unique", "summed", "natural"] = "unique",
+        X_reference: Optional[pd.DataFrame] = None,
+        metric: Literal[
+            "auto",
+            "probability_shift",
+            "mean_abs_diff",
+            "decision_function_shift",
+        ] = "auto",
+        masking_strategy: Literal["zero", "constant", "mean", "median", "min", "max"] = "zero",
+        constant_value: float = 0.0,
+        max_k: Optional[int] = None,
+        normalization: Literal["auto", "exact", "beam"] = "auto",
+        beam_size: int = 5,
+        exact_max_zones: int = 9,
+    ) -> Dict[str, Any]:
+        """Evaluate faithfulness with model/input-specific NAOPC bounds.
+
+        This is an alternative to :meth:`evaluate_faithfulness`. It uses the
+        same SMX zone rankings and masking strategies, but computes a
+        target-class AOPC per sample and normalizes it by the attainable lower
+        and upper bounds for that sample. The legacy faithfulness method is
+        not changed by this method.
+
+        ``normalization='exact'`` uses dynamic programming over all masked
+        zone subsets. ``'beam'`` uses deterministic upper/lower beam searches;
+        ``'auto'`` selects exact normalization when the number of zones is at
+        most ``exact_max_zones``.
+        """
+        if self.estimator is None:
+            raise RuntimeError(
+                "SMX requires a fitted estimator to evaluate normalized faithfulness."
+            )
+
+        ranking_map = {
+            "unique": self.lrc_summed_unique_,
+            "summed": self.lrc_summed_,
+            "natural": self.lrc_natural_,
+        }
+        if ranking not in ranking_map:
+            raise ValueError("ranking must be 'unique', 'summed', or 'natural'.")
+
+        ranking_df = ranking_map[ranking]
+        if ranking_df is None or ranking_df.empty:
+            raise RuntimeError(
+                f"No ranking data is available for ranking='{ranking}'. Fit SMX before "
+                "calling evaluate_normalized_faithfulness()."
+            )
+
+        result = normalized_progressive_masking_faithfulness(
+            estimator=self.estimator,
+            X_eval=X_eval,
+            spectral_cuts=self.spectral_cuts,
+            ranking_df=ranking_df,
+            X_reference=X_reference,
+            metric=metric,
+            masking_strategy=masking_strategy,
+            constant_value=constant_value,
+            max_k=max_k,
+            normalization=normalization,
+            beam_size=beam_size,
+            exact_max_zones=exact_max_zones,
+        )
+        result["ranking_source"] = ranking
+        self.normalized_faithfulness_ = result
         return result
 
     def plot_zone_ranking_over_spectrum(

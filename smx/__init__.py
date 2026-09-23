@@ -45,7 +45,10 @@ from smx.graph.interpretation import (
     reconstruct_threshold_to_spectrum,
     extract_predicate_info,
 )
-from smx.evaluation import progressive_masking_faithfulness
+from smx.evaluation import (
+    normalized_progressive_masking_faithfulness,
+    progressive_masking_faithfulness,
+)
 from smx.datasets.synthetic import generate_synthetic_spectral_data
 from smx.plotting import (
     DEFAULT_THEME,
@@ -82,6 +85,7 @@ __all__ = [
     "reconstruct_threshold_to_spectrum",
     "extract_predicate_info",
     "progressive_masking_faithfulness",
+    "normalized_progressive_masking_faithfulness",
     # plotting
     "DEFAULT_THEME",
     "SMXTheme",
