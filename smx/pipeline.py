@@ -101,7 +101,16 @@ class SMX:
     covariance_threshold : float, default 0.01
         Minimum covariance value to keep a predicate (covariance metric only).
     var_exp : bool, default True
-        Weight graph edges by PC1 explained variance of the source zone.
+        Weight graph edges by the explained variance of the source
+        predicate's principal component (PC1 in the default setting).
+    n_components : int or sequence of int, default 1
+        Principal components per zone used to build predicates (see
+        :class:`~smx.zones.aggregation.ZoneAggregator`).  ``1`` reproduces the
+        original PC1-only SMX; ``3`` builds predicates on PC1, PC2 and PC3
+        scores; ``[2]`` on PC2 only.  Perturbation still acts on the whole
+        zone, so predicates from different PCs of one zone differ only in
+        the samples they select.  Rankings then gain ``PC`` and ``Score``
+        columns.
     show_graph_details : bool, default False
         Print bidirectional-edge details during graph construction.
     class_threshold : float, default 0.5
@@ -159,6 +168,7 @@ class SMX:
         var_exp: bool = True,
         show_graph_details: bool = False,
         class_threshold: float = 0.5,
+        n_components: Union[int, Sequence[int]] = 1,
     ) -> None:
         if metric not in ("covariance", "perturbation"):
             raise ValueError(f"metric must be 'covariance' or 'perturbation', got '{metric}'.")
@@ -184,6 +194,7 @@ class SMX:
         self.var_exp = var_exp
         self.show_graph_details = show_graph_details
         self.class_threshold = class_threshold
+        self.n_components = n_components
 
         # Result attributes — populated by fit()
         self.lrc_natural_: Optional[pd.DataFrame] = None
@@ -240,7 +251,7 @@ class SMX:
         logger.debug("Extracting spectral zones…")
         zones_prep = extract_spectral_zones(X_cal_prep, self.spectral_cuts)
 
-        aggregator = ZoneAggregator(method="pca")
+        aggregator = ZoneAggregator(method="pca", n_components=self.n_components)
         zone_scores = aggregator.fit_transform(zones_prep)
         pca_info = aggregator.pca_info_
 
@@ -250,7 +261,7 @@ class SMX:
         # ── Step 2: predicate generation ─────────────────────────────────
         logger.debug("Generating predicates…")
         gen = PredicateGenerator(quantiles=self.quantiles)
-        gen.fit(zone_scores)
+        gen.fit(zone_scores, score_map=aggregator.score_map_)
         predicates_df = gen.predicates_df_
         self.predicates_df_ = predicates_df
 
@@ -357,7 +368,7 @@ class SMX:
         if X_cal_natural is not None:
             logger.debug("Mapping thresholds to natural scale…")
             zones_natural = extract_spectral_zones(X_cal_natural, self.spectral_cuts)
-            agg_natural = ZoneAggregator(method="pca")
+            agg_natural = ZoneAggregator(method="pca", n_components=self.n_components)
             zone_scores_natural = agg_natural.fit_transform(zones_natural)
 
             self.zones_natural_ = zones_natural
