@@ -122,7 +122,8 @@ class PredicateBagger:
                 if rows.empty:
                     continue
                 pred_row = rows.iloc[0]
-                zone = pred_row["zone"]
+                # Multi-PC predicates threshold a per-PC score column.
+                zone = pred_row.get("score", pred_row["zone"])
                 threshold = float(pred_row["thresholds"])
                 operator = pred_row["operator"]
 
