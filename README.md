@@ -372,6 +372,41 @@ print(f"AUC: {faithfulness['auc']:.4f} | Level: {faithfulness['level']} | "
 
 ![SMX faithfulness curve — progressive zone masking](https://raw.githubusercontent.com/joseviniciusr/SMX/b17acb2ab91156a4aa2b4dd6c7ef5c1b303b892a/assets/faithfulness_curve.png)
 
+### Normalized AOPC (NAOPC)
+
+SMX provides `evaluate_normalized_faithfulness` as the complementary NAOPC evaluation. It keeps the originally predicted class fixed for each sample and
+normalizes its AOPC by the model/input-specific attainable lower and upper
+bounds. `normalization="auto"` uses exact bounds for up to nine zones and a
+deterministic beam approximation above that threshold.
+
+```python
+normalized = smx.evaluate_normalized_faithfulness(
+    X_test_prep,
+    ranking="unique",
+    masking_strategy="zero",
+    metric="calibration_invariant",  # requires decision_function()
+    normalization="auto",
+    beam_size=5,
+    exact_max_zones=9,
+)
+print(f"NAOPC: {normalized['naopc']:.4f} | Level: {normalized['level']} | Null percentile: {normalized['null_percentile']:.1f}%")
+```
+
+The legacy `evaluate_faithfulness` remains available as the original protocol;
+NAOPC is an additional method for controlled investigation and comparison.
+For calibration-independent comparisons, select `metric="calibration_invariant"`;
+this uses decision-margin shifts and requires `decision_function()`. NAOPC also
+returns the legacy-compatible `level` and `null_percentile` fields, computed
+against random rankings using the same NAOPC normalization.
+
+For the confrontation performed in this proposal, 39 real dataset/model pairs
+were compared against an independent leave-one-zone-out retraining oracle. The
+original method matched the oracle in 12/39 cases (30.8%), while NAOPC matched
+16/39 (41.0%); there were four NAOPC-only matches and no original-only matches.
+The result supports NAOPC for cross-model comparisons, while also showing that
+its categorical labels require conservative interpretation. Details and the
+reproducible outputs are in docs/naopc.md.
+
 For a complete, executable walkthrough with synthetic data and visualization outputs, see the quickstart notebook:
 
 [examples/quickstart.ipynb](https://github.com/joseviniciusr/SMX/blob/b17acb2ab91156a4aa2b4dd6c7ef5c1b303b892a/examples/quickstart.ipynb)
@@ -391,6 +426,23 @@ If you use SMX in your research, please cite:
       url={https://arxiv.org/abs/2605.02684},
 }
 ```
+
+## NAOPC reference
+
+The NAOPC implementation follows Edin et al., _Normalized AOPC: Fixing
+Misleading Faithfulness Metrics for Feature Attributions Explainability_,
+Proceedings of ACL 2025, pages 1715--1730.
+[ACL Anthology](https://aclanthology.org/2025.acl-long.86/) and DOI
+[10.18653/v1/2025.acl-long.86](https://doi.org/10.18653/v1/2025.acl-long.86).
+
+    @inproceedings{edin-etal-2025-normalized,
+      title = {Normalized AOPC: Fixing Misleading Faithfulness Metrics for Feature Attributions Explainability},
+      author = {Edin, Joakim and Motzfeldt, Andreas Geert and Christensen, Casper L. and Ruotsalo, Tuukka and Maaloe, Lars and Maistro, Maria},
+      booktitle = {Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)},
+      pages = {1715--1730},
+      year = {2025},
+      doi = {10.18653/v1/2025.acl-long.86}
+    }
 
 ## License
 
