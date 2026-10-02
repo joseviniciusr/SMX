@@ -3,7 +3,7 @@ PredicateGenerator: generate binary predicates from quantile thresholds on
 zone aggregation scores.
 """
 
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -30,7 +30,10 @@ class PredicateGenerator:
     ------------------------------------
     predicates_df\_ : pd.DataFrame
         One row per predicate. Columns: ``predicate``, ``rule``, ``zone``,
-        ``thresholds``, ``operator``.
+        ``thresholds``, ``operator``.  When :meth:`fit` receives a
+        *score_map* (multi-PC aggregation) two more columns are added:
+        ``score`` (the score column the rule thresholds) and ``pc``;
+        ``zone`` then remains the underlying spectral zone.
     indicator_df\_ : pd.DataFrame
         Binary indicator matrix (samples × predicates).  Columns are predicate
         rule strings; values are 1/0.
@@ -51,14 +54,22 @@ class PredicateGenerator:
     # Public interface
     # ------------------------------------------------------------------
 
-    def fit(self, zone_scores_df: pd.DataFrame) -> "PredicateGenerator":
+    def fit(
+        self,
+        zone_scores_df: pd.DataFrame,
+        score_map: Optional[Dict[str, Tuple[str, int]]] = None,
+    ) -> "PredicateGenerator":
         """Learn predicates from *zone_scores_df*.
 
         Parameters
         ----------
         zone_scores_df : pd.DataFrame
-            Zone aggregation scores (samples × zones) as returned by
+            Zone aggregation scores (samples × score columns) as returned by
             :class:`smx.zones.aggregation.ZoneAggregator`.
+        score_map : dict, optional
+            ``{score_column: (zone_name, pc)}`` as exposed by
+            :attr:`ZoneAggregator.score_map_` for multi-PC aggregation.
+            When omitted every column is treated as a zone (PC1 only).
 
         Returns
         -------
@@ -68,25 +79,24 @@ class PredicateGenerator:
 
         predicate_rows = []
         predicate_num = 1
-        for zone in zone_scores_df.columns:
+        for score_col in zone_scores_df.columns:
+            extra = {}
+            zone = score_col
+            if score_map is not None:
+                zone, pc = score_map[score_col]
+                extra = {"score": score_col, "pc": pc}
             for q in self.quantiles:
-                q_value = self._zone_quantile_values_.loc[q, zone]
-                predicate_rows.append({
-                    "predicate": f"P{predicate_num}",
-                    "rule": f"{zone} <= {q_value:.2f}",
-                    "zone": zone,
-                    "thresholds": f"{q_value:.2f}",
-                    "operator": "<=",
-                })
-                predicate_num += 1
-                predicate_rows.append({
-                    "predicate": f"P{predicate_num}",
-                    "rule": f"{zone} > {q_value:.2f}",
-                    "zone": zone,
-                    "thresholds": f"{q_value:.2f}",
-                    "operator": ">",
-                })
-                predicate_num += 1
+                q_value = self._zone_quantile_values_.loc[q, score_col]
+                for operator in ("<=", ">"):
+                    predicate_rows.append({
+                        "predicate": f"P{predicate_num}",
+                        "rule": f"{score_col} {operator} {q_value:.2f}",
+                        "zone": zone,
+                        "thresholds": f"{q_value:.2f}",
+                        "operator": operator,
+                        **extra,
+                    })
+                    predicate_num += 1
 
         predicates_df = pd.DataFrame(predicate_rows)
 
@@ -160,10 +170,10 @@ class PredicateGenerator:
 
         columns_dict = {}
         for _, row in predicates_df.iterrows():
-            zone = row["zone"]
-            if zone not in zone_scores_df.columns:
+            score_col = row.get("score", row["zone"])
+            if score_col not in zone_scores_df.columns:
                 continue
-            columns_dict[row["rule"]] = zone_scores_df[zone].apply(
+            columns_dict[row["rule"]] = zone_scores_df[score_col].apply(
                 lambda v, t=row["thresholds"], op=row["operator"]: _eval(v, t, op)
             )
 
