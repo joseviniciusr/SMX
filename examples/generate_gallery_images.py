@@ -1,26 +1,39 @@
-"""Generate static PNG images used in smx/plotting/gallery.md."""
+"""Generate the static PNG images used in smx/plotting/gallery.md and docs/.
 
+Usage::
+
+    python examples/generate_gallery_images.py [OUTPUT_DIR ...]
+
+Images are written to ``assets/`` and ``docs/_static/`` by default.
+Static export requires ``kaleido``.
+"""
+
+import shutil
+import sys
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 
 from smx import (
     SMX,
+    building_spectral_zones,
     generate_synthetic_spectral_data,
     plot_all_thresholds_overlay,
     plot_lrc_bar,
     plot_predicate_heatmap,
+    plot_spectrum_with_zones,
     plot_threshold_spectrum,
     plot_zone_ranking_over_spectrum,
     plot_zone_scores,
 )
 
 SEED = 42
-ASSETS = Path(__file__).resolve().parent.parent / "assets"
-ASSETS.mkdir(exist_ok=True)
+ROOT = Path(__file__).resolve().parent.parent
+OUTPUT_DIRS = [Path(p) for p in sys.argv[1:]] or [ROOT / "assets", ROOT / "docs" / "_static"]
+ASSETS = OUTPUT_DIRS[0]
+ASSETS.mkdir(parents=True, exist_ok=True)
 
 # ── Dataset ────────────────────────────────────────────────────────────────────
 CLASSES_CONFIG = [
@@ -92,96 +105,91 @@ CLASS_COLORS = {"A": "#e41a1c", "B": "#377eb8"}
 
 W, H = 1200, 480  # standard gallery dimensions (2.5 : 1)
 
+
 # ── 1. Zone ranking over spectrum ──────────────────────────────────────────────
 print("Generating zone_ranking_over_spectrum.png …")
 plot_zone_ranking_over_spectrum(
-    zone_ranking_df=explainer.lrc_natural_,
-    spectral_cuts=spectral_cuts,
-    reference_spectrum=explainer.zones_natural_,
+    explainer.lrc_natural_,
+    spectral_cuts,
+    explainer.zones_natural_,
     output_path=ASSETS / "zone_ranking_over_spectrum.png",
-    title="SMX zone ranking over spectrum",
     spectrum_name="Mean calibration spectrum",
     class_spectra={"A": X_cal[y_cal == "A"], "B": X_cal[y_cal == "B"]},
     class_colors=CLASS_COLORS,
     width=W,
     height=H,
 )
-print(f"  Saved: {ASSETS / 'zone_ranking_over_spectrum.png'}")
 
-# ── 2. Threshold spectrum (top-ranked zone) ────────────────────────────────────
-top_per_zone = (
-    explainer.lrc_natural_[explainer.lrc_natural_["Zone"].notna()]
-    .sort_values("Local_Reaching_Centrality", ascending=False)
-    .drop_duplicates(subset=["Zone"])
-)
-
-top_row = top_per_zone.iloc[0]
-row_index = explainer.lrc_natural_.index[
-    explainer.lrc_natural_["Node"] == top_row["Node"]
-].tolist()[0]
-
+# ── 2. Threshold spectrum (top-ranked predicate) ───────────────────────────────
 print("Generating threshold_spectrum.png …")
+top_position = int(explainer.lrc_natural_["Local_Reaching_Centrality"].to_numpy().argmax())
 plot_threshold_spectrum(
-    lrc_natural_df=explainer.lrc_natural_,
-    row_index=row_index,
-    spectral_zones_original=explainer.zones_natural_,
-    pca_info_dict_original=explainer.pca_info_natural_,
-    y_labels=y_cal,
+    explainer.lrc_natural_,
+    top_position,
+    explainer.zones_natural_,
+    explainer.pca_info_natural_,
+    y_cal,
     output_path=ASSETS / "threshold_spectrum.png",
     class_colors=CLASS_COLORS,
     width=W,
     height=H,
 )
-print(f"  Saved: {ASSETS / 'threshold_spectrum.png'}")
 
 # ── 3. LRC Bar Chart ───────────────────────────────────────────────────────────
 print("Generating lrc_bar.png …")
-plot_lrc_bar(
-    zone_ranking_df=explainer.lrc_natural_,
-    output_path=ASSETS / "lrc_bar.png",
-    title="LRC Score by Spectral Zone",
-    width=W,
-    height=H,
-)
-print(f"  Saved: {ASSETS / 'lrc_bar.png'}")
+plot_lrc_bar(explainer.lrc_natural_, output_path=ASSETS / "lrc_bar.png", width=W, height=H)
 
 # ── 4. Predicate Heatmap ───────────────────────────────────────────────────────
 print("Generating predicate_heatmap.png …")
-plot_predicate_heatmap(
-    lrc_natural_df=explainer.lrc_natural_,
-    output_path=ASSETS / "predicate_heatmap.png",
-    title="Predicate LRC Heatmap",
-    width=W,
-    height=H,
-)
-print(f"  Saved: {ASSETS / 'predicate_heatmap.png'}")
+plot_predicate_heatmap(explainer.lrc_natural_, output_path=ASSETS / "predicate_heatmap.png", width=W, height=H)
 
 # ── 5. Zone PC1 Score Violin ───────────────────────────────────────────────────
 print("Generating zone_scores.png …")
 plot_zone_scores(
-    zones=explainer.zones_natural_,
-    y_labels=y_cal,
+    explainer.zones_natural_,
+    y_cal,
     output_path=ASSETS / "zone_scores.png",
-    title="PC1 Scores by Spectral Zone and Class",
     class_colors=CLASS_COLORS,
     width=W,
     height=H,
 )
-print(f"  Saved: {ASSETS / 'zone_scores.png'}")
 
 # ── 6. All-Zone Threshold Overlay ──────────────────────────────────────────────
 print("Generating all_thresholds_overlay.png …")
 plot_all_thresholds_overlay(
-    lrc_natural_df=explainer.lrc_natural_,
-    zones_natural=explainer.zones_natural_,
-    pca_info_natural=explainer.pca_info_natural_,
-    y_labels=y_cal,
-    spectral_cuts=spectral_cuts,
+    explainer.lrc_natural_,
+    explainer.zones_natural_,
+    explainer.pca_info_natural_,
+    y_cal,
+    spectral_cuts,
     output_path=ASSETS / "all_thresholds_overlay.png",
-    title="All-Zone Threshold Overlay",
     class_colors=CLASS_COLORS,
     width=W,
     height=H,
 )
-print(f"  Saved: {ASSETS / 'all_thresholds_overlay.png'}")
-print("Done.")
+
+# ── 7. Faithfulness curve ──────────────────────────────────────────────────────
+print("Generating faithfulness_curve.png …")
+X_test_prep = X_test.reset_index(drop=True) - X_mean
+explainer.evaluate_faithfulness(X_test_prep, ranking="unique", masking_strategy="zero")
+explainer.plot_faithfulness(ASSETS / "faithfulness_curve.png", width=W, height=H)
+
+# ── 8. Automatically detected zones ────────────────────────────────────────────
+print("Generating detected_zones.png …")
+detected_cuts = building_spectral_zones(X_cal, prominence=0.3)
+plot_spectrum_with_zones(
+    X_cal,
+    detected_cuts,
+    output_path=ASSETS / "detected_zones.png",
+    title="Mean spectrum with detected zones and backgrounds",
+    width=W,
+    height=H,
+)
+
+for extra in OUTPUT_DIRS[1:]:
+    extra.mkdir(parents=True, exist_ok=True)
+    for image in ASSETS.glob("*.png"):
+        if image.name in {"method_overview.png", "SMX_logo.png", "SMX_final_logo.png"}:
+            continue
+        shutil.copy2(image, extra / image.name)
+print("Done:", ", ".join(str(d) for d in OUTPUT_DIRS))

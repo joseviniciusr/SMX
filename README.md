@@ -86,8 +86,8 @@ spectral_cuts = building_spectral_zones(
     svg_window_length=7,      # SG window length (if svg_smooth=True)
     svg_polyorder=3,         # SG polynomial order (if svg_smooth=True)
     svg_deriv=0,             # SG derivative order (0=smoothing only, 1=first derivative, etc.)
-    ploting=True,            # Generate visualization with detected zones
-    output_path="detected_zones.png",  # Save plot to file
+    plotting=True,           # Display the detected zones (see plot_spectrum_with_zones)
+    output_path="detected_zones.png",  # Save the plot to file
 )
 ```
 
@@ -95,7 +95,7 @@ spectral_cuts = building_spectral_zones(
 
 The function automatically identifies local minima (valleys) and maxima (peaks) in the spectrum, then constructs zones bounded by consecutive minima, alternating between spectral features (zones) and inter-feature regions (background).
 
-![Detected spectral zones](https://raw.githubusercontent.com/joseviniciusr/SMX/6961538/assets/detected_zones.png)
+![Detected spectral zones](https://raw.githubusercontent.com/joseviniciusr/SMX/main/assets/detected_zones.png)
 
 ## Predicate Construction from Zone Scores
 
@@ -220,28 +220,30 @@ print(faithfulness["level"], faithfulness["auc"], faithfulness.get("plot_path"))
 
 ## Plotting Gallery
 
-SMX ships seven interactive Plotly visualizations that turn LRC results into
-immediately readable explanations. All figures accept a unified `SMXTheme`
-for consistent styling and support both `.html` (interactive) and
-`.png` / `.svg` / `.pdf` (static, via `kaleido`) output formats.
+SMX ships eight interactive Plotly visualizations that turn LRC results into
+immediately readable explanations. Every plot function returns a
+`plotly.graph_objects.Figure` (customise it, `fig.show()` it, or let Jupyter
+render it), accepts a unified `SMXTheme` for consistent styling, and can export
+to `.html` (interactive) or `.png` / `.svg` / `.pdf` (static, via `kaleido`)
+through `output_path=`.
 
 <table>
   <tr>
     <td align="center" width="33%">
       <a href="smx/plotting/gallery.md#plot_zone_ranking_over_spectrum">
-        <img src="https://raw.githubusercontent.com/joseviniciusr/SMX/6961538/assets/zone_ranking_over_spectrum.png" alt="Zone ranking over spectrum"><br>
+        <img src="https://raw.githubusercontent.com/joseviniciusr/SMX/main/assets/zone_ranking_over_spectrum.png" alt="Zone ranking over spectrum"><br>
         <b>Zone Ranking</b>
       </a>
     </td>
     <td align="center" width="33%">
       <a href="smx/plotting/gallery.md#plot_lrc_bar">
-        <img src="https://raw.githubusercontent.com/joseviniciusr/SMX/6961538/assets/lrc_bar.png" alt="Zone importance"><br>
+        <img src="https://raw.githubusercontent.com/joseviniciusr/SMX/main/assets/lrc_bar.png" alt="Zone importance"><br>
         <b>Zone Importance</b>
       </a>
     </td>
     <td align="center" width="33%">
       <a href="smx/plotting/gallery.md#plot_predicate_heatmap">
-        <img src="https://raw.githubusercontent.com/joseviniciusr/SMX/6961538/assets/predicate_heatmap.png" alt="Predicate heatmap"><br>
+        <img src="https://raw.githubusercontent.com/joseviniciusr/SMX/main/assets/predicate_heatmap.png" alt="Predicate heatmap"><br>
         <b>Predicate Heatmap</b>
       </a>
     </td>
@@ -249,19 +251,19 @@ for consistent styling and support both `.html` (interactive) and
   <tr>
     <td align="center" width="33%">
       <a href="smx/plotting/gallery.md#plot_threshold_spectrum">
-        <img src="https://raw.githubusercontent.com/joseviniciusr/SMX/6961538/assets/threshold_spectrum.png" alt="Threshold spectrum"><br>
+        <img src="https://raw.githubusercontent.com/joseviniciusr/SMX/main/assets/threshold_spectrum.png" alt="Threshold spectrum"><br>
         <b>Threshold Spectrum</b>
       </a>
     </td>
     <td align="center" width="33%">
       <a href="smx/plotting/gallery.md#plot_all_thresholds_overlay">
-        <img src="https://raw.githubusercontent.com/joseviniciusr/SMX/6961538/assets/all_thresholds_overlay.png" alt="All-zone threshold overlay"><br>
+        <img src="https://raw.githubusercontent.com/joseviniciusr/SMX/main/assets/all_thresholds_overlay.png" alt="All-zone threshold overlay"><br>
         <b>All-Zone Threshold Overlay</b>
       </a>
     </td>
     <td align="center" width="33%">
       <a href="smx/plotting/gallery.md#plot_zone_scores">
-        <img src="https://raw.githubusercontent.com/joseviniciusr/SMX/6961538/assets/zone_scores.png" alt="Zone higher variance score"><br>
+        <img src="https://raw.githubusercontent.com/joseviniciusr/SMX/main/assets/zone_scores.png" alt="Zone higher variance score"><br>
         <b>Zone Higher Variance Score</b>
       </a>
     </td>
@@ -290,11 +292,11 @@ explainer=SMX(...) # SMX instance after fitting (see easy usage for example)
 
 explainer.fit(X_cal_prep, y_pred_cal, X_cal_natural=X_cal_raw)
 
-# Interactive HTML
-explainer.plot_zone_ranking_over_spectrum("zone_ranking.html", ranking="unique")
+# Returns a plotly Figure; also exported to HTML here
+fig = explainer.plot_zone_ranking_over_spectrum("zone_ranking.html", ranking="unique")
 
 # Static PNG (requires kaleido)
-explainer.plot_zone_ranking_over_spectrum(
+fig = explainer.plot_zone_ranking_over_spectrum(
     "zone_ranking.png",
     ranking="unique",
     X_natural=X_cal_raw,
@@ -309,16 +311,16 @@ You can also call the standalone plotting function:
 ```python
 from smx import plot_zone_ranking_over_spectrum
 
-plot_zone_ranking_over_spectrum(
-    zone_ranking_df=explainer.lrc_summed_unique_,
-    spectral_cuts=spectral_cuts,
-    reference_spectrum=explainer.zones_natural_,
-    output_path="zone_ranking.png",   # or .html
+fig = plot_zone_ranking_over_spectrum(
+    explainer.lrc_summed_unique_,
+    spectral_cuts,
+    explainer.zones_natural_,
+    output_path="zone_ranking.png",   # optional; or .html
     class_spectra={"A": X_cal[y_cal == "A"], "B": X_cal[y_cal == "B"]},
 )
 ```
 
-![Zone ranking over spectrum](https://raw.githubusercontent.com/joseviniciusr/SMX/b17acb2ab91156a4aa2b4dd6c7ef5c1b303b892a/assets/zone_ranking_over_spectrum.png)
+![Zone ranking over spectrum](https://raw.githubusercontent.com/joseviniciusr/SMX/main/assets/zone_ranking_over_spectrum.png)
 
 ## Faithfulness Evaluation
 
@@ -337,17 +339,15 @@ The output of `evaluate_faithfulness` includes:
 
   | Level | Condition |
   |-------|-----------|
-  | *very high* | `null_percentile ≥ 95` |
-  | *high* | `null_percentile ≥ 90` |
-  | *moderate* | `null_percentile ≥ 75` |
-  | *low* | `null_percentile ≥ 50` |
-  | *very low* | `null_percentile < 50` |
+  | *Very High* | `null_percentile ≥ 95` |
+  | *High* | `80 ≤ null_percentile < 95` |
+  | *Moderate* | `60 ≤ null_percentile < 80` |
+  | *Low* | `null_percentile < 60` |
 
-- **`null_percentile`** — percentile of the true AUC against a **null distribution** built by computing the AUC for a large number of random zone orderings (default: 500 permutations). A percentile close to 100 means the LRC-based ranking is far better than random; a percentile near 50 means the ranking carries no more information than chance.
+- **`null_percentile`** — percentile of the true AUC against a **null distribution** built by computing the AUC for `n_random_rankings` random zone orderings (default: 100). A percentile close to 100 means the LRC-based ranking is far better than random; a percentile near 50 means the ranking carries no more information than chance.
 - **`curve_df`** — a DataFrame with columns `k`, `masked_zone`, `masked_zones`, and `score` describing the curve point at each masking step
-- **`plot_path`** — path to a saved interactive Plotly HTML figure (when `output_path` is provided)
-- **`null_distribution`** — list of AUC values from the null (random) permutations, useful for diagnostic histograms
-- **`k`** — number of top zones at which the maximum drop in prediction score is observed
+- **`plot_path`** — path to the saved figure (when `output_path` is provided)
+- **`null_auc_distribution`** — AUC values of the random orderings, useful for diagnostic histograms
 
 **Interpretation guide for the masking curve:**
 
@@ -355,7 +355,7 @@ The output of `evaluate_faithfulness` includes:
 - **Gradual decline** — predictive power is distributed across many zones; the model relies on a broad spectral signature rather than a few sharp features
 - **Flat curve** — masking has little effect regardless of zone order, indicating either a weak classifier or a ranking that is misaligned with decision behaviour
 
-The curve is visualised via `plot_faithfulness_curve`, which draws the prediction-shift curve with a shaded AUC region and annotates the summary statistics. Pass `show_percentile=True` to overlay the null-distribution percentile band on the figure.
+The curve is visualised via `plot_faithfulness_curve` (or `explainer.plot_faithfulness()`), which draws the prediction-shift curve with a shaded AUC region and reports the summary statistics in a side panel. Pass `show_percentile=True` to add the random-baseline percentile to that panel.
 
 ```python
 # After fitting an SMX explainer
@@ -370,7 +370,7 @@ print(f"AUC: {faithfulness['auc']:.4f} | Level: {faithfulness['level']} | "
       f"Null percentile: {faithfulness['null_percentile']:.1f}%")
 ```
 
-![SMX faithfulness curve — progressive zone masking](https://raw.githubusercontent.com/joseviniciusr/SMX/b17acb2ab91156a4aa2b4dd6c7ef5c1b303b892a/assets/faithfulness_curve.png)
+![SMX faithfulness curve — progressive zone masking](https://raw.githubusercontent.com/joseviniciusr/SMX/main/assets/faithfulness_curve.png)
 
 ### Normalized AOPC (NAOPC)
 

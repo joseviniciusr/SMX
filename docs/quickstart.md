@@ -75,12 +75,13 @@ print(smx.lrc_summed_unique_.head())
 ```python
 from smx import plot_zone_ranking_over_spectrum
 
-plot_zone_ranking_over_spectrum(
-    zone_ranking_df=smx.lrc_natural_,
-    spectral_cuts=spectral_cuts,
-    reference_spectrum=smx.zones_natural_,
-    output_path="zone_ranking.html",
+fig = plot_zone_ranking_over_spectrum(
+    smx.lrc_natural_,
+    spectral_cuts,
+    smx.zones_natural_,
+    output_path="zone_ranking.html",  # optional export
 )
+fig.show()  # not needed in Jupyter: the returned figure renders itself
 ```
 
 ## Full script and notebook

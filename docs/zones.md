@@ -22,7 +22,7 @@ spectral_cuts = building_spectral_zones(
     svg_smooth=False,       # optionally apply Savitzky-Golay smoothing first
     svg_window_length=11,   # window length for Savitzky-Golay filter (must be odd and >= polyorder + 2)
     svg_polyorder=3,        # polynomial order for Savitzky-Golay filter
-    ploting=True,           # interactive Plotly visualization with shaded zones
+    plotting=True,          # display the detected zones (interactive Plotly figure)
 )
 ```
 
