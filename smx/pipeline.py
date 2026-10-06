@@ -397,7 +397,7 @@ class SMX:
         max_k: Optional[int] = None,
         n_random_rankings: int = 100,
         random_state: Optional[int] = 42,
-        output_path: Optional[Union[str, "Path"]] = None,
+        output_path: Optional[Union[str, Path]] = None,
         plot_title: Optional[str] = None,
         plot_width: int = 1100,
         plot_height: int = 560,
@@ -490,7 +490,7 @@ class SMX:
             from smx.plotting import plot_faithfulness_curve
 
             plot_faithfulness_curve(
-                faithfulness_result=result,
+                result,
                 output_path=output_path,
                 title=plot_title,
                 width=plot_width,
@@ -577,27 +577,25 @@ class SMX:
 
     def plot_zone_ranking_over_spectrum(
         self,
-        output_path: Union[str, Path],
+        output_path: Optional[Union[str, Path]] = None,
         *,
         ranking: Literal["unique", "natural"] = "unique",
         aggregation: Literal["mean", "median"] = "mean",
-        title: Optional[str] = None,
         X_natural: Optional[pd.DataFrame] = None,
         y_labels: Optional["pd.Series"] = None,
-        class_colors: Optional[dict] = None,
-        width: Optional[int] = 1200,
-        height: Optional[int] = 500,
-    ) -> pd.DataFrame:
-        """Plot ranked spectral zones over a reference spectrum and save to file.
+        **plot_kwargs: Any,
+    ):
+        """Plot ranked spectral zones over the natural-scale mean spectrum.
 
-        The output format is inferred from *output_path* — ``.html`` for an
-        interactive figure, or ``.png`` / ``.svg`` / ``.pdf`` for a static image
-        (requires ``kaleido``).
+        Thin wrapper around :func:`smx.plotting.plot_zone_ranking_over_spectrum`
+        using the fitted ranking, spectral cuts and natural-scale zones.
 
         Parameters
         ----------
-        output_path : str or Path
-            Destination ``.html`` file.
+        output_path : str or Path, optional
+            Export destination; ``.html`` for an interactive figure or
+            ``.png`` / ``.svg`` / ``.pdf`` for a static image (requires
+            ``kaleido``).  Nothing is written when ``None``.
         ranking : {'unique', 'natural'}, default 'unique'
             Ranking source. ``'unique'`` uses ``lrc_summed_unique_`` (one row per
             zone). ``'natural'`` uses ``lrc_natural_`` and collapses multiple
@@ -605,27 +603,21 @@ class SMX:
         aggregation : {'mean', 'median'}, default 'mean'
             Aggregation used to build the reference spectrum from
             ``zones_natural_``.
-        title : str, optional
-            Figure title override.
         X_natural : pd.DataFrame, optional
             Full calibration dataset in natural (unpreprocessed) units.  When
             provided together with *y_labels*, a mean spectrum is drawn for each
             class on top of the overall reference spectrum.
         y_labels : pd.Series, optional
-            Class labels aligned with the rows of *X_natural*.  Required when
-            *X_natural* is given.
-        class_colors : dict[str, str], optional
-            Mapping from class label to hex/CSS color string.  Missing labels
-            fall back to a built-in palette.
-        width : int, default 1200
-            Figure width in pixels. Used only for static image exports.
-        height : int, default 500
-            Figure height in pixels. Used only for static image exports.
+            Class labels aligned with the rows of *X_natural*.
+        plot_kwargs
+            Forwarded to :func:`smx.plotting.plot_zone_ranking_over_spectrum`
+            (e.g. ``title``, ``class_colors``, ``theme``, ``width``,
+            ``height``, ``return_df``).
 
         Returns
         -------
-        pd.DataFrame
-            Normalized ranking table used in the figure.
+        plotly.graph_objects.Figure or (Figure, pd.DataFrame)
+            See :func:`smx.plotting.plot_zone_ranking_over_spectrum`.
         """
         from smx.plotting import plot_zone_ranking_over_spectrum
 
@@ -647,63 +639,55 @@ class SMX:
         else:
             raise ValueError("ranking must be 'unique' or 'natural'.")
 
-        if ranking == "natural" and self.lrc_natural_ is None:
-            raise RuntimeError(
-                "Natural-scale ranking was requested (ranking='natural'), but SMX.fit() was called without X_cal_natural. "
-                "Re-run SMX.fit(..., X_cal_natural=...) to compute natural-scale thresholds."
-            )
-
         if ranking_df is None or ranking_df.empty:
             raise RuntimeError(
                 "No ranking information is available. Fit SMX successfully before plotting."
             )
 
+        if (X_natural is None) != (y_labels is None):
+            raise ValueError("X_natural and y_labels must be provided together.")
         class_spectra = None
-        if X_natural is not None and y_labels is not None:
+        if X_natural is not None:
+            labels = np.asarray(y_labels)
             class_spectra = {
-                str(cls): X_natural[y_labels.values == cls]
-                for cls in y_labels.unique()
+                str(cls): X_natural[labels == cls]
+                for cls in pd.unique(labels)
             }
 
         return plot_zone_ranking_over_spectrum(
-            zone_ranking_df=ranking_df,
-            spectral_cuts=self.spectral_cuts,
-            reference_spectrum=self.zones_natural_,
+            ranking_df,
+            self.spectral_cuts,
+            self.zones_natural_,
             output_path=output_path,
             aggregation=aggregation,
-            title=title or "SMX zone ranking over spectrum",
             class_spectra=class_spectra,
-            class_colors=class_colors,
-            width=width,
-            height=height,
+            **plot_kwargs,
         )
 
     def plot_faithfulness(
         self,
-        output_path: Union[str, "Path"],
-        *,
-        title: Optional[str] = None,
-        width: int = 1100,
-        height: int = 560,
-    ) -> pd.DataFrame:
+        output_path: Optional[Union[str, Path]] = None,
+        **plot_kwargs: Any,
+    ):
         """Plot the progressive masking faithfulness curve saved in ``faithfulness_``.
+
+        Thin wrapper around :func:`smx.plotting.plot_faithfulness_curve`.
 
         Parameters
         ----------
-        output_path : str or Path
-            Destination file. Use ``.html`` for an interactive figure or an
-            image extension for static export.
-        title : str, optional
-            Figure title override.
-        width : int, default 1100
-            Figure width in pixels. Used only for static image exports.
-        height : int, default 560
-            Figure height in pixels. Used only for static image exports.
+        output_path : str or Path, optional
+            Export destination; ``.html`` for an interactive figure or an
+            image extension for static export.  Nothing is written when
+            ``None``.
+        plot_kwargs
+            Forwarded to :func:`smx.plotting.plot_faithfulness_curve`
+            (e.g. ``title``, ``theme``, ``width``, ``height``,
+            ``show_percentile``, ``return_df``).
 
         Returns
         -------
-        pd.DataFrame
-            Faithfulness masking curve used in the figure.
+        plotly.graph_objects.Figure or (Figure, pd.DataFrame)
+            See :func:`smx.plotting.plot_faithfulness_curve`.
         """
         from smx.plotting import plot_faithfulness_curve
 
@@ -714,9 +698,7 @@ class SMX:
             )
 
         return plot_faithfulness_curve(
-            faithfulness_result=self.faithfulness_,
+            self.faithfulness_,
             output_path=output_path,
-            title=title,
-            width=width,
-            height=height,
+            **plot_kwargs,
         )

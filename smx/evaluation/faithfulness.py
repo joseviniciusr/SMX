@@ -27,6 +27,11 @@ FaithfulnessMetric = Literal[
 ]
 
 
+#: ``(upper_percentile_bound, level)`` pairs; percentiles at or above the last
+#: bound map to ``"Very High"``.
+FAITHFULNESS_LEVEL_BOUNDS = ((60.0, "Low"), (80.0, "Moderate"), (95.0, "High"))
+
+
 def faithfulness_level_from_percentile(percentile: float) -> str:
     """Map a null-ranking percentile to the SMX categorical level.
 
@@ -39,12 +44,9 @@ def faithfulness_level_from_percentile(percentile: float) -> str:
     """
     if not np.isfinite(percentile):
         return "Unavailable"
-    if percentile < 60.0:
-        return "Low"
-    if percentile < 80.0:
-        return "Moderate"
-    if percentile < 95.0:
-        return "High"
+    for bound, level in FAITHFULNESS_LEVEL_BOUNDS:
+        if percentile < bound:
+            return level
     return "Very High"
 
 

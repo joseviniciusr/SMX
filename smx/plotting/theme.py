@@ -7,19 +7,21 @@ All plotting helpers accept an optional ``theme`` argument of type
 Example — using the default theme::
 
     from smx.plotting import plot_zone_ranking_over_spectrum
-    plot_zone_ranking_over_spectrum(..., output_path="out.html")
+    fig = plot_zone_ranking_over_spectrum(...)
 
 Example — overriding selected fields::
 
     from smx.plotting.theme import SMXTheme
     my_theme = SMXTheme(font_family="Georgia", colorscale="Blues")
-    plot_zone_ranking_over_spectrum(..., output_path="out.html", theme=my_theme)
+    fig = plot_zone_ranking_over_spectrum(..., theme=my_theme)
 """
 
 from __future__ import annotations
 
+import re
+import zlib
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, Hashable, Iterable, List, Optional
 
 
 @dataclass
@@ -44,6 +46,8 @@ class SMXTheme:
         Plotly colorscale name used for LRC-score zone bands and the colorbar.
     zone_opacity : float
         Opacity applied to zone background rectangles (vrect).
+    no_data_color : str
+        Fill color for cells/zones without a score (e.g. missing predicates).
     reference_line_color : str
         Color for the overall reference/mean spectrum line.
     reference_line_width : int
@@ -96,6 +100,7 @@ class SMXTheme:
     # ── Zone ranking colorscale ────────────────────────────────────────────────
     colorscale: str = "YlOrRd"
     zone_opacity: float = 0.28
+    no_data_color: str = "rgb(220,220,220)"
 
     # ── Reference / mean spectrum ──────────────────────────────────────────────
     reference_line_color: str = "#2b2b2b"
@@ -127,6 +132,9 @@ class SMXTheme:
     def resolve_class_color(self, label: str, _used: list | None = None) -> str:
         """Return the color for *label*, falling back to the palette if needed.
 
+        Prefer :meth:`class_color_map` when coloring several labels at once:
+        it guarantees distinct colors across the labels of a single figure.
+
         Parameters
         ----------
         label : str
@@ -142,7 +150,38 @@ class SMXTheme:
                 if color not in _used:
                     _used.append(color)
                     return color
-        return self.fallback_palette[hash(label) % len(self.fallback_palette)]
+        # Deterministic across interpreter runs, unlike the built-in hash().
+        index = zlib.crc32(str(label).encode("utf-8")) % len(self.fallback_palette)
+        return self.fallback_palette[index]
+
+    def class_color_map(
+        self,
+        labels: Iterable[Hashable],
+        overrides: Optional[Dict[str, str]] = None,
+    ) -> Dict[Hashable, str]:
+        """Return a ``{label: color}`` mapping for every label in *labels*.
+
+        Colors are resolved with the precedence *overrides* →
+        ``class_colors`` → ``fallback_palette``.  Labels are matched by their
+        string form, so integer class labels work with string-keyed mappings.
+        Palette colors already used by another label in the same call are
+        skipped, so every label gets a distinct color while the palette lasts.
+        """
+        explicit = dict(self.class_colors)
+        explicit.update({str(k): v for k, v in (overrides or {}).items()})
+
+        labels = list(dict.fromkeys(labels))
+        colors: Dict[Hashable, str] = {
+            label: explicit[str(label)] for label in labels if str(label) in explicit
+        }
+        free = [c for c in self.fallback_palette if c not in colors.values()]
+        free = free or list(self.fallback_palette)
+        n_assigned = 0
+        for label in labels:
+            if label not in colors:
+                colors[label] = free[n_assigned % len(free)]
+                n_assigned += 1
+        return {label: colors[label] for label in labels}
 
     def plotly_layout(self, **overrides) -> dict:
         """Return a ``fig.update_layout`` kwargs dict with theme base values.
@@ -166,13 +205,15 @@ def blend_with_white(rgb_str: str, opacity: float) -> str:
 
     Used to match colorscale colors to the actual rendered appearance of zone
     background rectangles, which are drawn with fractional opacity over a white
-    plot background.
+    plot background.  Accepts ``rgb(...)``/``rgba(...)`` strings and hex colors.
     """
-    import re
-    vals = [int(v) for v in re.findall(r"\d+", rgb_str)][:3]
-    r = int(opacity * vals[0] + (1 - opacity) * 255)
-    g = int(opacity * vals[1] + (1 - opacity) * 255)
-    b = int(opacity * vals[2] + (1 - opacity) * 255)
+    if rgb_str.startswith("#"):
+        from plotly.colors import hex_to_rgb
+
+        vals = list(hex_to_rgb(rgb_str))
+    else:
+        vals = [float(v) for v in re.findall(r"[\d.]+", rgb_str)][:3]
+    r, g, b = (int(round(opacity * v + (1 - opacity) * 255)) for v in vals)
     return f"rgb({r},{g},{b})"
 
 

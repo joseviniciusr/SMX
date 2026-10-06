@@ -35,5 +35,5 @@ result = progressive_masking_faithfulness(
 ## Plot saved results
 
 ```python
-smx.plot_faithfulness("faithfulness_curve.html")
+fig = smx.plot_faithfulness("faithfulness_curve.html", show_percentile=True)
 ```
