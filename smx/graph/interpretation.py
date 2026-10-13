@@ -108,7 +108,8 @@ def map_thresholds_to_natural(
     node_natural_list = []
 
     for _, row in result_df.iterrows():
-        zone_name = row["Zone"]
+        # Multi-PC rankings threshold a per-PC score column, not the zone itself.
+        zone_name = row["Score"] if "Score" in row.index else row["Zone"]
         threshold_val = row["Threshold"]
         operator = row["Operator"]
 

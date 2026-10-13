@@ -7,7 +7,7 @@ PCA model fitted on calibration data can be applied consistently to
 prediction data.
 """
 
-from typing import Dict, Literal, Optional, Union
+from typing import Dict, List, Literal, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -37,16 +37,28 @@ class ZoneAggregator:
     method : str, default ``'pca'``
         Aggregation strategy.
 
-        * ``'pca'``: fit a single-component PCA per zone and use PC1 scores.
+        * ``'pca'``: fit a PCA per zone and use the scores of the selected
+          components (PC1 only by default).
           Preserves directional information and maximises explained variance.
         * ``'sum'``, ``'mean'``, ``'median'``, ``'max'``, ``'min'``,
           ``'std'``, ``'var'``, ``'extreme'``: simple column-wise aggregations.
+    n_components : int or sequence of int, default 1
+        Principal components kept per zone (``method='pca'`` only).  An int
+        ``k`` keeps PC1..PCk; a sequence keeps exactly those (1-based) PCs,
+        e.g. ``[2]`` for PC2 only.  With the default (PC1 only) score columns
+        are named after the zone, as in the original SMX; otherwise each
+        column is named ``"<zone> [PC<j>]"``.
 
     Attributes (set after :meth:`fit`)
     ------------------------------------
     pca_info\_ : dict or None
-        ``{zone_name: {'pca_model', 'loadings', 'mean', 'variance_explained', 'columns'}}``
+        ``{score_column: {'pca_model', 'loadings', 'mean', 'variance_explained',
+        'columns', 'zone', 'pc'}}`` where ``loadings`` and
+        ``variance_explained`` refer to that column's component.
         Only populated when ``method='pca'``.
+    score_map\_ : dict or None
+        ``{score_column: (zone_name, pc)}``.  ``None`` unless components other
+        than PC1 alone were requested.
     is_fitted\_ : bool
         ``True`` after :meth:`fit` has been called.
     """
@@ -54,15 +66,32 @@ class ZoneAggregator:
     def __init__(
         self,
         method: str = "pca",
+        n_components: Union[int, Sequence[int]] = 1,
     ) -> None:
         valid = {"pca"} | set(_SIMPLE_AGGREGATORS)
         if method not in valid:
             raise ValueError(
                 f"Unknown method '{method}'. Valid options: {sorted(valid)}"
             )
+        if isinstance(n_components, (int, np.integer)):
+            components = list(range(1, int(n_components) + 1))
+        else:
+            components = sorted({int(c) for c in n_components})
+        if not components or components[0] < 1:
+            raise ValueError("n_components must select at least one PC (1-based).")
         self.method = method
+        self.n_components = n_components
+        self.components_: List[int] = components
         self.pca_info_: Optional[Dict] = None
+        self.score_map_: Optional[Dict[str, Tuple[str, int]]] = None
         self.is_fitted_: bool = False
+
+    @property
+    def _legacy_naming(self) -> bool:
+        return self.components_ == [1]
+
+    def _score_column(self, zone_name: str, pc: int) -> str:
+        return zone_name if self._legacy_naming else f"{zone_name} [PC{pc}]"
 
     # ------------------------------------------------------------------
     # Public interface
@@ -71,9 +100,10 @@ class ZoneAggregator:
     def fit(self, spectral_zones_dict: Dict[str, pd.DataFrame]) -> "ZoneAggregator":
         """Fit the aggregator on calibration zone data.
 
-        For ``method='pca'`` this trains a 1-component PCA per zone and stores
-        the models so the same projections can be applied to new data.  For
-        simple aggregation methods, fit is a no-op (nothing to learn).
+        For ``method='pca'`` this trains a PCA per zone (up to the highest
+        requested component) and stores the models so the same projections
+        can be applied to new data.  For simple aggregation methods, fit is a
+        no-op (nothing to learn).
 
         Parameters
         ----------
@@ -87,17 +117,27 @@ class ZoneAggregator:
         """
         if self.method == "pca":
             self.pca_info_ = {}
+            self.score_map_ = None if self._legacy_naming else {}
             for zone_name, zone_df in spectral_zones_dict.items():
                 X_zone = zone_df.values.astype(float)
-                pca = PCA(n_components=1)
+                n_fit = min(self.components_[-1], *X_zone.shape)
+                pca = PCA(n_components=n_fit)
                 pca.fit(X_zone)
-                self.pca_info_[zone_name] = {
-                    "pca_model": pca,
-                    "loadings": pca.components_[0],
-                    "mean": pca.mean_,
-                    "variance_explained": pca.explained_variance_ratio_[0],
-                    "columns": zone_df.columns.tolist(),
-                }
+                for pc in self.components_:
+                    if pc > n_fit:
+                        continue  # zone too narrow for this component
+                    col = self._score_column(zone_name, pc)
+                    self.pca_info_[col] = {
+                        "pca_model": pca,
+                        "loadings": pca.components_[pc - 1],
+                        "mean": pca.mean_,
+                        "variance_explained": pca.explained_variance_ratio_[pc - 1],
+                        "columns": zone_df.columns.tolist(),
+                        "zone": zone_name,
+                        "pc": pc,
+                    }
+                    if self.score_map_ is not None:
+                        self.score_map_[col] = (zone_name, pc)
         self.is_fitted_ = True
         return self
 
@@ -122,17 +162,23 @@ class ZoneAggregator:
         scores: Dict[str, pd.Series] = {}
 
         if self.method == "pca":
+            fitted_zones = {info["zone"] for info in self.pca_info_.values()}
             for zone_name, zone_df in spectral_zones_dict.items():
-                if zone_name not in self.pca_info_:
+                if zone_name not in fitted_zones:
                     raise KeyError(
                         f"Zone '{zone_name}' was not seen during fit. "
                         "Ensure the same zones are used for fit and transform."
                     )
-                info = self.pca_info_[zone_name]
-                pca: PCA = info["pca_model"]
                 X_zone = zone_df.values.astype(float)
-                zone_scores = pca.transform(X_zone).flatten()
-                scores[zone_name] = pd.Series(zone_scores, index=zone_df.index)
+                projected = None
+                for col, info in self.pca_info_.items():
+                    if info["zone"] != zone_name:
+                        continue
+                    if projected is None:
+                        projected = info["pca_model"].transform(X_zone)
+                    scores[col] = pd.Series(
+                        projected[:, info["pc"] - 1], index=zone_df.index
+                    )
         else:
             agg_fn = _SIMPLE_AGGREGATORS[self.method]
             for zone_name, zone_df in spectral_zones_dict.items():
@@ -160,7 +206,7 @@ class ZoneAggregator:
     # ------------------------------------------------------------------
 
     def get_variance_explained(self) -> Optional[Dict[str, float]]:
-        """Return per-zone explained variance (PCA method only).
+        """Return explained variance per score column (PCA method only).
 
         Returns ``None`` for non-PCA methods.
         """

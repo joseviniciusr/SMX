@@ -67,6 +67,12 @@ def compute_lrc(graph: nx.DiGraph, predicates_df: pd.DataFrame) -> pd.DataFrame:
     lrc_df["Zone"] = zones
     lrc_df["Threshold"] = thresholds
     lrc_df["Operator"] = operators
+
+    # Multi-PC predicates: record which score column / component each came from.
+    if "pc" in predicates_df.columns:
+        by_rule = predicates_df.set_index("rule")
+        lrc_df["PC"] = lrc_df["Node"].map(by_rule["pc"])
+        lrc_df["Score"] = lrc_df["Node"].map(by_rule["score"])
     return lrc_df
 
 
@@ -100,6 +106,7 @@ def aggregate_lrc_across_seeds(
 
     lrc_all = pd.concat(frames, ignore_index=True)
 
+    extra_cols = {c: (c, "first") for c in ("PC", "Score") if c in lrc_all.columns}
     lrc_summed_df = (
         lrc_all.groupby("Node")
         .agg(
@@ -107,6 +114,7 @@ def aggregate_lrc_across_seeds(
             Zone=("Zone", "first"),
             Threshold=("Threshold", "first"),
             Operator=("Operator", "first"),
+            **extra_cols,
         )
         .reset_index()
         .sort_values("Local_Reaching_Centrality", ascending=False)

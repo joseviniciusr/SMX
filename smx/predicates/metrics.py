@@ -314,7 +314,9 @@ class PerturbationMetric(BasePredicateMetric):
             )
 
         self.estimator = estimator
-        self.Xcalclass_prep = Xcalclass_prep
+        # copy() consolidates column blocks; frames built column by column
+        # (e.g. by preprocessing) otherwise make every row selection slow.
+        self.Xcalclass_prep = Xcalclass_prep.copy()
         self.predicates_df = predicates_df
         self.spectral_cuts = spectral_cuts
         self.aim = aim
@@ -400,8 +402,11 @@ class PerturbationMetric(BasePredicateMetric):
                         else X_eval[zone_cols]
                     )
                     col_stats = getattr(src, self.perturbation_mode)(axis=0)
-                    for col in zone_cols:
-                        X_perturbed[col] = col_stats[col]
+                    # One block assignment: per-column setitem fragments the
+                    # frame and makes every later copy/predict much slower.
+                    X_perturbed[zone_cols] = np.tile(
+                        col_stats[zone_cols].to_numpy(), (len(X_perturbed), 1)
+                    )
 
                 # ── Compute importance ────────────────────────────────────
                 try:
