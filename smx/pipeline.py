@@ -106,6 +106,11 @@ class SMX:
         Print bidirectional-edge details during graph construction.
     class_threshold : float, default 0.5
         Decision boundary for ``Class_Predicted`` annotation on bags.
+    n_jobs : int, default 1
+        Number of repetitions run in parallel (joblib, process-based). The
+        repetitions are independent and seeded, so the result does not depend
+        on *n_jobs*. Model outputs for the perturbation metric are computed
+        once before the repetitions start and shared by all of them.
 
     Attributes (set after :meth:`fit`)
     ------------------------------------
@@ -159,6 +164,7 @@ class SMX:
         var_exp: bool = True,
         show_graph_details: bool = False,
         class_threshold: float = 0.5,
+        n_jobs: int = 1,
     ) -> None:
         if metric not in ("covariance", "perturbation"):
             raise ValueError(f"metric must be 'covariance' or 'perturbation', got '{metric}'.")
@@ -184,6 +190,7 @@ class SMX:
         self.var_exp = var_exp
         self.show_graph_details = show_graph_details
         self.class_threshold = class_threshold
+        self.n_jobs = n_jobs
 
         # Result attributes — populated by fit()
         self.lrc_natural_: Optional[pd.DataFrame] = None
@@ -257,83 +264,51 @@ class SMX:
         metric_column = "Covariance" if self.metric == "covariance" else "Perturbation"
 
         # ── Step 3: seed loop ────────────────────────────────────────────
+        # The metric does not depend on the seed: one object serves every
+        # repetition, so its cached model outputs are computed only once.
+        if self.metric == "covariance":
+            metric_obj = CovarianceMetric(
+                metric="covariance",
+                threshold=self.covariance_threshold,
+            )
+        else:
+            metric_obj = PerturbationMetric(
+                estimator=self.estimator,
+                Xcalclass_prep=X_cal_prep,
+                predicates_df=predicates_df,
+                spectral_cuts=self.spectral_cuts,
+                perturbation_mode=self.perturbation_mode,
+                perturbation_value=self.perturbation_value,
+                stats_source=self.perturbation_stats_source,
+                metric=self.perturbation_metric,
+                normalize_by_zone_size=self.normalize_by_zone_size,
+                zone_size_exponent=self.zone_size_exponent,
+            )
+            if self.n_jobs != 1:
+                metric_obj.warm_cache()
+
+        if self.n_jobs == 1:
+            seed_results = [
+                self._fit_seed(seed, zone_scores, y_pred, predicates_df, pca_info, metric_obj, metric_column)
+                for seed in self.seeds
+            ]
+        else:
+            from joblib import Parallel, delayed
+
+            seed_results = Parallel(n_jobs=self.n_jobs)(
+                delayed(self._fit_seed)(
+                    seed, zone_scores, y_pred, predicates_df, pca_info, metric_obj, metric_column
+                )
+                for seed in self.seeds
+            )
+
         lrc_by_seed: Dict[int, pd.DataFrame] = {}
         graphs_by_seed: Dict[int, nx.DiGraph] = {}
-
-        for seed in self.seeds:
-            logger.debug("Seed %d — bagging…", seed)
-
-            # 3a. Bagging
-            bagger = PredicateBagger(
-                n_bags=self.n_bags,
-                n_samples_fraction=self.n_samples_fraction,
-                replace=self.replace,
-                sample_bagging=True,
-                predicate_bagging=False,
-                random_seed=seed,
-            )
-            bags = bagger.run(zone_scores, y_pred, predicates_df)
-
-            # Annotate bags with discrete class prediction
-            for pred_dict in bags.values():
-                for df_info in pred_dict.values():
-                    df_info["Class_Predicted"] = np.where(
-                        df_info["Predicted_Y"] >= self.class_threshold, "A", "B"
-                    )
-
-            # 3b. Metric
-            logger.debug("Seed %d — computing %s metric…", seed, self.metric)
-            if self.metric == "covariance":
-                metric_obj = CovarianceMetric(
-                    metric="covariance",
-                    threshold=self.covariance_threshold,
-                )
-            else:
-                metric_obj = PerturbationMetric(
-                    estimator=self.estimator,
-                    Xcalclass_prep=X_cal_prep,
-                    predicates_df=predicates_df,
-                    spectral_cuts=self.spectral_cuts,
-                    perturbation_mode=self.perturbation_mode,
-                    perturbation_value=self.perturbation_value,
-                    stats_source=self.perturbation_stats_source,
-                    metric=self.perturbation_metric,
-                    normalize_by_zone_size=self.normalize_by_zone_size,
-                    zone_size_exponent=self.zone_size_exponent,
-                )
-            rankings = metric_obj.compute(bags)
-
-            # 3c. Graph
-            logger.debug("Seed %d — building predicate graph…", seed)
-            builder = PredicateGraphBuilder(
-                random_state=seed,
-                show_details=self.show_graph_details,
-                var_exp=self.var_exp,
-                pca_info_dict=pca_info if self.var_exp else None,
-            )
-            graph = builder.build(bags, rankings, metric_column=metric_column)
+        for seed, graph, lrc_df_seed, warning in seed_results:
             graphs_by_seed[seed] = graph
-
-            # 3d. LRC
-            predicate_nodes = [
-                n for n, attr in graph.nodes(data=True)
-                if attr.get("node_type") == "predicate"
-            ]
-            if len(predicate_nodes) < 1 or graph.number_of_nodes() < 2:
-                logger.warning(
-                    "Seed %d produced an undersized graph (%s, nodes=%d, predicate_nodes=%d) — skipping.",
-                    seed, self.metric, graph.number_of_nodes(), len(predicate_nodes)
-                )
+            if warning is not None:
+                logger.warning(warning)
                 continue
-
-            lrc_df_seed = compute_lrc(graph, predicates_df)
-            if lrc_df_seed.empty:
-                logger.warning(
-                    "Seed %d produced an empty LRC table after graph processing (%s) — skipping.",
-                    seed, self.metric,
-                )
-                continue
-            lrc_df_seed["Seed"] = seed
             lrc_by_seed[seed] = lrc_df_seed
 
         if not lrc_by_seed:
@@ -378,6 +353,74 @@ class SMX:
             self.pca_info_natural_ = None
 
         return self
+
+    def _fit_seed(
+        self,
+        seed: int,
+        zone_scores: pd.DataFrame,
+        y_pred: pd.Series,
+        predicates_df: pd.DataFrame,
+        pca_info: Dict,
+        metric_obj: Any,
+        metric_column: str,
+    ):
+        """One repetition: bagging → metric → graph → LRC.
+
+        Returns ``(seed, graph, lrc_df, warning)``; *lrc_df* is ``None`` and
+        *warning* explains why when the repetition is skipped.
+        """
+        logger.debug("Seed %d — bagging…", seed)
+
+        # 3a. Bagging
+        bagger = PredicateBagger(
+            n_bags=self.n_bags,
+            n_samples_fraction=self.n_samples_fraction,
+            replace=self.replace,
+            sample_bagging=True,
+            predicate_bagging=False,
+            random_seed=seed,
+        )
+        bags = bagger.run(zone_scores, y_pred, predicates_df)
+
+        # Annotate bags with discrete class prediction
+        for pred_dict in bags.values():
+            for df_info in pred_dict.values():
+                df_info["Class_Predicted"] = np.where(
+                    df_info["Predicted_Y"] >= self.class_threshold, "A", "B"
+                )
+
+        # 3b. Metric
+        logger.debug("Seed %d — computing %s metric…", seed, self.metric)
+        rankings = metric_obj.compute(bags)
+
+        # 3c. Graph
+        logger.debug("Seed %d — building predicate graph…", seed)
+        builder = PredicateGraphBuilder(
+            random_state=seed,
+            show_details=self.show_graph_details,
+            var_exp=self.var_exp,
+            pca_info_dict=pca_info if self.var_exp else None,
+        )
+        graph = builder.build(bags, rankings, metric_column=metric_column)
+
+        # 3d. LRC
+        predicate_nodes = [
+            n for n, attr in graph.nodes(data=True)
+            if attr.get("node_type") == "predicate"
+        ]
+        if len(predicate_nodes) < 1 or graph.number_of_nodes() < 2:
+            return seed, graph, None, (
+                f"Seed {seed} produced an undersized graph ({self.metric}, "
+                f"nodes={graph.number_of_nodes()}, predicate_nodes={len(predicate_nodes)}) — skipping."
+            )
+
+        lrc_df_seed = compute_lrc(graph, predicates_df)
+        if lrc_df_seed.empty:
+            return seed, graph, None, (
+                f"Seed {seed} produced an empty LRC table after graph processing ({self.metric}) — skipping."
+            )
+        lrc_df_seed["Seed"] = seed
+        return seed, graph, lrc_df_seed, None
 
     def evaluate_faithfulness(
         self,

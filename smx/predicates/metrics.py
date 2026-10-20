@@ -273,6 +273,19 @@ class PerturbationMetric(BasePredicateMetric):
         Print per-predicate progress.
     save_detailed_results : bool, default True
         Attach a ``'__detailed_perturbation_results__'`` key to the result.
+    cache_predictions : bool, default True
+        Reuse model outputs across predicates, bags and :meth:`compute` calls.
+        When the perturbed zone does not depend on the predicate's samples
+        (``perturbation_mode='constant'`` or ``stats_source='full'``), the
+        perturbed copy of a calibration sample is the same for every
+        predicate of its zone. The model is then evaluated once on the full
+        calibration set and once per perturbed zone (Z + 1 calls), and each
+        predicate indexes its samples' rows. All metrics are per-sample
+        averages, so the result matches the uncached computation; models
+        evaluated through BLAS matrix products (e.g. PLS, MLP) can differ in
+        the last bits, because a full-batch product sums in a different
+        order than a subset. Ignored for ``stats_source='predicate'`` with a
+        non-constant mode.
     """
 
     _REGRESSION_METRICS = {"mean_abs_diff", "mean_diff", "mean_relative_dev"}
@@ -298,6 +311,7 @@ class PerturbationMetric(BasePredicateMetric):
         zone_size_exponent: float = 1.0,
         verbose: bool = False,
         save_detailed_results: bool = True,
+        cache_predictions: bool = True,
     ) -> None:
         aim = "classification" if metric in self._CLASSIFICATION_METRICS else "regression" if metric in self._REGRESSION_METRICS else None
 
@@ -326,10 +340,37 @@ class PerturbationMetric(BasePredicateMetric):
         self.zone_size_exponent = zone_size_exponent
         self.verbose = verbose
         self.save_detailed_results = save_detailed_results
+        self.cache_predictions = cache_predictions
+
+        # Model outputs on the full calibration set: key None = unperturbed,
+        # key <zone name> = that zone replaced. Filled lazily by _cached_outputs.
+        self._output_cache: Dict[Optional[str], np.ndarray] = {}
+        self._zone_cols_cache: Dict[str, Tuple[List[str], Optional[float], Optional[float]]] = {}
+        self._rule_zone: Dict[str, str] = dict(zip(predicates_df["rule"], predicates_df["zone"]))
 
     @property
     def metric_column(self) -> str:
         return "Perturbation"
+
+    @property
+    def uses_cache(self) -> bool:
+        """Whether model outputs are shared across predicates and bags."""
+        return self.cache_predictions and (
+            self.perturbation_mode == "constant" or self.stats_source == "full"
+        )
+
+    def warm_cache(self) -> None:
+        """Evaluate the model on the calibration set and on every perturbed zone.
+
+        Optional: :meth:`compute` fills the cache on demand. Calling this first
+        lets copies of the object (e.g. in parallel workers) share the outputs.
+        """
+        if not self.uses_cache:
+            return
+        for rule in self.predicates_df["rule"].unique():
+            zone_cols, _, _ = self._zone_columns(rule)
+            if zone_cols:
+                self._cached_outputs(self._zone_of(rule), zone_cols)
 
     def compute(self, bags_dict: Dict[str, Dict[str, pd.DataFrame]]) -> Dict[str, pd.DataFrame]:
         """Compute perturbation importance for each predicate in each bag.
@@ -371,12 +412,7 @@ class PerturbationMetric(BasePredicateMetric):
 
                 # ── Get zone columns ──────────────────────────────────────
                 try:
-                    zone_cols, zone_start, zone_end = _get_zone_columns(
-                        pred_rule,
-                        self.predicates_df,
-                        self.spectral_cuts,
-                        self.Xcalclass_prep.columns,
-                    )
+                    zone_cols, zone_start, zone_end = self._zone_columns(pred_rule)
                 except (KeyError, ValueError) as exc:
                     fold_metrics[pred_rule] = 0.0
                     fold_detailed[pred_rule] = {"importance": 0.0, "skip_reason": str(exc)}
@@ -387,30 +423,25 @@ class PerturbationMetric(BasePredicateMetric):
                     fold_detailed[pred_rule] = {"importance": 0.0, "skip_reason": "empty zone"}
                     continue
 
-                X_eval = self.Xcalclass_prep.iloc[sample_indices].copy()
-
-                # ── Perturb zone ──────────────────────────────────────────
-                X_perturbed = X_eval.copy()
-                if self.perturbation_mode == "constant":
-                    X_perturbed[zone_cols] = self.perturbation_value
-                else:
-                    src = (
-                        self.Xcalclass_prep[zone_cols]
-                        if self.stats_source == "full"
-                        else X_eval[zone_cols]
-                    )
-                    col_stats = getattr(src, self.perturbation_mode)(axis=0)
-                    for col in zone_cols:
-                        X_perturbed[col] = col_stats[col]
-
                 # ── Compute importance ────────────────────────────────────
                 try:
-                    importance, importance_for_ranking = self._compute_importance(
-                        X_eval, X_perturbed, accuracy_score, f1_score
+                    if self.uses_cache:
+                        rows = np.asarray(sample_indices, dtype=int)
+                        out_orig = self._cached_outputs(None, None)[rows]
+                        out_pert = self._cached_outputs(self._zone_of(pred_rule), zone_cols)[rows]
+                    else:
+                        X_eval = self.Xcalclass_prep.iloc[sample_indices]
+                        X_perturbed = self._perturb(X_eval.copy(), zone_cols, X_eval)
+                        out_orig = self._model_output(X_eval)
+                        out_pert = self._model_output(X_perturbed)
+                    importance, importance_for_ranking = self._importance_from_outputs(
+                        out_orig, out_pert, accuracy_score, f1_score
                     )
                 except (TypeError, ValueError) as exc:
                     try:
-                        y_sample = np.array(self.estimator.predict(X_eval.iloc[:1])).flatten()
+                        y_sample = np.array(
+                            self.estimator.predict(self.Xcalclass_prep.iloc[sample_indices[:1]])
+                        ).flatten()
                         pred_dtype = y_sample.dtype
                         is_numeric = np.issubdtype(pred_dtype, np.number)
                     except Exception:
@@ -478,17 +509,59 @@ class PerturbationMetric(BasePredicateMetric):
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _compute_importance(
+    def _zone_of(self, rule: str) -> str:
+        return self._rule_zone[rule]
+
+    def _zone_columns(self, rule: str) -> Tuple[List[str], Optional[float], Optional[float]]:
+        if rule not in self._zone_cols_cache:
+            self._zone_cols_cache[rule] = _get_zone_columns(
+                rule, self.predicates_df, self.spectral_cuts, self.Xcalclass_prep.columns
+            )
+        return self._zone_cols_cache[rule]
+
+    def _perturb(self, X: pd.DataFrame, zone_cols: List[str], X_eval: pd.DataFrame) -> pd.DataFrame:
+        """Replace *zone_cols* of *X* in place; *X_eval* is the predicate's samples."""
+        if self.perturbation_mode == "constant":
+            X[zone_cols] = self.perturbation_value
+        else:
+            src = (
+                self.Xcalclass_prep[zone_cols]
+                if self.stats_source == "full"
+                else X_eval[zone_cols]
+            )
+            col_stats = getattr(src, self.perturbation_mode)(axis=0)
+            for col in zone_cols:
+                X[col] = col_stats[col]
+        return X
+
+    def _cached_outputs(self, zone_name: Optional[str], zone_cols: Optional[List[str]]) -> np.ndarray:
+        """Model outputs on the full calibration set, with *zone_name* perturbed (None = original)."""
+        if zone_name not in self._output_cache:
+            X = self.Xcalclass_prep
+            if zone_name is not None:
+                X = self._perturb(X.copy(), zone_cols, X)
+            self._output_cache[zone_name] = self._model_output(X)
+        return self._output_cache[zone_name]
+
+    def _model_output(self, X: pd.DataFrame) -> np.ndarray:
+        """The estimator output the metric compares (probabilities, scores or predictions)."""
+        if self.metric == "probability_shift":
+            return np.asarray(self.estimator.predict_proba(X))
+        if self.metric == "decision_function_shift":
+            return np.asarray(self.estimator.decision_function(X))
+        return np.asarray(self.estimator.predict(X))
+
+    def _importance_from_outputs(
         self,
-        X_eval: pd.DataFrame,
-        X_perturbed: pd.DataFrame,
+        out_orig: np.ndarray,
+        out_pert: np.ndarray,
         accuracy_score,
         f1_score,
     ) -> Tuple[float, float]:
         """Return (raw_importance, importance_for_ranking)."""
         if self.aim == "regression":
-            y_orig = np.array(self.estimator.predict(X_eval)).flatten()
-            y_pert = np.array(self.estimator.predict(X_perturbed)).flatten()
+            y_orig = out_orig.flatten()
+            y_pert = out_pert.flatten()
 
             if self.metric == "mean_abs_diff":
                 imp = float(np.mean(np.abs(y_orig - y_pert)))
@@ -504,34 +577,21 @@ class PerturbationMetric(BasePredicateMetric):
 
         # ── Classification ────────────────────────────────────────────────
         if self.metric == "prediction_change_rate":
-            y_orig = np.array(self.estimator.predict(X_eval)).flatten()
-            y_pert = np.array(self.estimator.predict(X_perturbed)).flatten()
-            imp = float(np.mean(y_orig != y_pert))
+            imp = float(np.mean(out_orig.flatten() != out_pert.flatten()))
             return imp, imp
 
         elif self.metric == "accuracy_drop":
-            y_orig = np.array(self.estimator.predict(X_eval)).flatten()
-            y_pert = np.array(self.estimator.predict(X_perturbed)).flatten()
-            imp = float(1.0 - accuracy_score(y_orig, y_pert))
+            imp = float(1.0 - accuracy_score(out_orig.flatten(), out_pert.flatten()))
             return imp, imp
 
         elif self.metric == "f1_drop":
-            y_orig = np.array(self.estimator.predict(X_eval)).flatten()
-            y_pert = np.array(self.estimator.predict(X_perturbed)).flatten()
-            imp = float(1.0 - f1_score(y_orig, y_pert, average="weighted"))
+            imp = float(1.0 - f1_score(out_orig.flatten(), out_pert.flatten(), average="weighted"))
             return imp, imp
 
         elif self.metric == "probability_shift":
-            prob_orig = self.estimator.predict_proba(X_eval)
-            prob_pert = self.estimator.predict_proba(X_perturbed)
-            shift = np.mean(np.sum(np.abs(prob_orig - prob_pert), axis=1) / 2.0)
+            shift = np.mean(np.sum(np.abs(out_orig - out_pert), axis=1) / 2.0)
             return float(shift), float(shift)
 
         else:  # decision_function_shift
-            df_orig = np.array(self.estimator.decision_function(X_eval))
-            df_pert = np.array(self.estimator.decision_function(X_perturbed))
-            if df_orig.ndim == 1:
-                df_orig = df_orig.flatten()
-                df_pert = df_pert.flatten()
-            imp = float(np.mean(np.abs(df_orig - df_pert)))
+            imp = float(np.mean(np.abs(out_orig - out_pert)))
             return imp, imp

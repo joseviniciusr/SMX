@@ -92,6 +92,18 @@ class PredicateBagger:
         all_rules = predicates_df["rule"].tolist()
         bags: Dict[str, Dict[str, pd.DataFrame]] = {}
 
+        # Lookups hoisted out of the per-bag × per-rule loop (first row per rule,
+        # zone columns as arrays); the bags are the same as with per-rule lookups.
+        first_rows = predicates_df.drop_duplicates(subset="rule", keep="first")
+        rule_info = {
+            r: (z, float(t), op)
+            for r, z, t, op in zip(
+                first_rows["rule"], first_rows["zone"], first_rows["thresholds"], first_rows["operator"]
+            )
+        }
+        zone_arrays = {z: zone_scores_df[z].to_numpy() for z in first_rows["zone"].unique()}
+        y_values = y_predicted_numeric.to_numpy()
+
         for bag_num in range(1, self.n_bags + 1):
             # ── Sample selection ──────────────────────────────────────────
             if self.sample_bagging:
@@ -116,17 +128,15 @@ class PredicateBagger:
             # ── Build bag ────────────────────────────────────────────────
             bag_predicates: Dict[str, pd.DataFrame] = {}
             n_discarded = 0
+            # bag_indices are labels of zone_scores_df (.loc); positions for the arrays
+            bag_pos = zone_scores_df.index.get_indexer(bag_indices)
 
             for rule in selected_rules:
-                rows = predicates_df[predicates_df["rule"] == rule]
-                if rows.empty:
+                if rule not in rule_info:
                     continue
-                pred_row = rows.iloc[0]
-                zone = pred_row["zone"]
-                threshold = float(pred_row["thresholds"])
-                operator = pred_row["operator"]
+                zone, threshold, operator = rule_info[rule]
 
-                zone_vals = zone_scores_df.loc[bag_indices, zone].values
+                zone_vals = zone_arrays[zone][bag_pos]
                 if operator == "<=":
                     mask = zone_vals <= threshold
                 elif operator == ">":
@@ -135,6 +145,7 @@ class PredicateBagger:
                     continue
 
                 satisfied = bag_indices[mask]
+                satisfied_pos = bag_pos[mask]
 
                 if self.sample_bagging and len(satisfied) < min_samples_per_predicate:
                     n_discarded += 1
@@ -144,8 +155,8 @@ class PredicateBagger:
                     continue
 
                 bag_predicates[rule] = pd.DataFrame({
-                    "Zone_Sum": zone_scores_df.loc[satisfied, zone].values,
-                    "Predicted_Y": y_predicted_numeric.iloc[satisfied].values,
+                    "Zone_Sum": zone_arrays[zone][satisfied_pos],
+                    "Predicted_Y": y_values[satisfied],
                     "Sample_Index": satisfied,
                 })
 
