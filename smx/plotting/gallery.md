@@ -4,6 +4,29 @@ All SMX plotting helpers share a unified visual theme controlled by
 [`SMXTheme`](#smxtheme--visual-theme).  Pass a custom theme to any function
 to override fonts, colors, and line styles consistently across all figures.
 
+## Conventions shared by every plot function
+
+* Data arguments come first; all other arguments are **keyword-only**.
+* Every function **returns a `plotly.graph_objects.Figure`** and never displays
+  it on its own: in Jupyter the returned figure renders automatically, in a
+  script call `fig.show()`. The figure can be customised further with
+  `fig.update_layout(...)` before showing or saving it.
+* `return_df=True` returns `(fig, data)` instead, where `data` is the table the
+  figure was built from. In Jupyter a bare call renders both.
+* `output_path=None` writes nothing; otherwise the format is inferred from the
+  suffix: `.html` (interactive) or `.png` / `.jpg` / `.webp` / `.svg` / `.pdf`
+  (static, requires `kaleido`). Missing parent folders are created.
+* `title=None` uses the plot's default title, `title=""` removes it.
+* `width` / `height` set the figure size in pixels for display *and* export.
+* `class_colors` and `colorscale` override the corresponding `theme` fields.
+
+```python
+fig = plot_lrc_bar(explainer.lrc_natural_)            # returns the figure
+fig.update_layout(title="My title")                   # customise freely
+fig.write_image("lrc_bar.pdf")                        # or output_path=...
+fig, ranking = plot_lrc_bar(explainer.lrc_natural_, return_df=True)
+```
+
 ---
 
 ## `plot_zone_ranking_over_spectrum`
@@ -20,11 +43,11 @@ file extension of `output_path`.
 ```python
 from smx import plot_zone_ranking_over_spectrum
 
-plot_zone_ranking_over_spectrum(
-    zone_ranking_df=explainer.lrc_natural_,
-    spectral_cuts=spectral_cuts,
-    reference_spectrum=explainer.zones_natural_,
-    output_path="zone_ranking.html",
+fig = plot_zone_ranking_over_spectrum(
+    explainer.lrc_natural_,
+    spectral_cuts,
+    explainer.zones_natural_,
+    output_path="zone_ranking.html",  # optional
 )
 ```
 
@@ -85,22 +108,23 @@ explainer.plot_zone_ranking_over_spectrum(
 | `annotation_y` | `1.06` | Annotation y-position in paper coordinates |
 | `class_spectra` | `None` | Per-class spectra dict to overlay as solid lines |
 | `class_colors` | theme | Per-class hex/CSS colors |
-| `width` / `height` | `1200` / `500` | Pixel dimensions for static export |
+| `width` / `height` | `1200` / `500` | Figure size in pixels |
 | `theme` | `DEFAULT_THEME` | `SMXTheme` instance |
-| `return_df` | `False` | If `True`, return the normalised ranking DataFrame |
+| `return_df` | `False` | If `True`, return `(fig, ranking_df)` with the normalised `zone/score/rank` table |
 
 ---
 
 ## `plot_spectrum_with_zones`
 
-Plots a single spectrum (or the first row of a DataFrame) with spectral zones
+Plots a spectrum (a DataFrame or 2-D array is averaged over rows) with spectral zones
 highlighted as shaded rectangular bands. Zone and background regions can be
 styled independently. Optionally overlays markers for detected peaks and minima.
 
-![Spectrum with zones — auto-detected zones via `building_spectral_zones`](https://raw.githubusercontent.com/joseviniciusr/SMX/b17acb2ab91156a4aa2b4dd6c7ef5c1b303b892a/assets/detected_zones.png)
+![Spectrum with zones — auto-detected zones via `building_spectral_zones`](https://raw.githubusercontent.com/joseviniciusr/SMX/main/assets/detected_zones.png)
 
-*Above: output from `building_spectral_zones` with `ploting=True`, which calls
-`plot_spectrum_with_zones` internally to visualise the detected zones.*
+*Above: the cuts detected by `building_spectral_zones` drawn with
+`plot_spectrum_with_zones` (`building_spectral_zones(..., plotting=True)`
+displays the same figure).*
 
 ### Minimal usage
 
@@ -149,9 +173,10 @@ plot_spectrum_with_zones(
 | `output_path` | `None` | `.html` for interactive, `.png/.svg/.pdf` for static |
 | `zone_color` | `"rgb(173, 216, 230)"` | Light blue fill for spectral zones |
 | `background_color` | `"rgb(0, 34, 75)"` | Dark blue fill for background zones |
-| `width` / `height` | `1200` / `500` | Pixel dimensions for static export |
+| `zone_opacity` | theme | Opacity of the shaded regions |
+| `width` / `height` | `1200` / `500` | Figure size in pixels |
 | `theme` | `DEFAULT_THEME` | `SMXTheme` instance |
-| `return_df` | `False` | If `True`, return the normalised cuts DataFrame |
+| `return_df` | `False` | If `True`, return `(fig, cuts_df)` with the parsed cuts |
 
 ---
 
@@ -168,39 +193,35 @@ class.
 ```python
 from smx.plotting import plot_threshold_spectrum
 
-row_index = 0  # integer row of lrc_natural_df to visualise
-
-plot_threshold_spectrum(
-    lrc_natural_df=explainer.lrc_natural_,
-    row_index=row_index,
-    spectral_zones_original=explainer.zones_natural_,
-    pca_info_dict_original=explainer.pca_info_natural_,
-    y_labels=y_cal,
-    output_path="threshold_Feature1.html",
+fig = plot_threshold_spectrum(
+    explainer.lrc_natural_,
+    0,                              # positional row of lrc_natural_ (iloc)
+    explainer.zones_natural_,
+    explainer.pca_info_natural_,
+    y_cal,
     class_colors={"A": "#e41a1c", "B": "#377eb8"},
 )
 ```
 
-### Loop over all top-ranked predicates
+### Loop over the top-ranked predicate of every zone
 
 ```python
-top_per_zone = (
-    explainer.lrc_natural_[explainer.lrc_natural_["Zone"].notna()]
+lrc = explainer.lrc_natural_.reset_index(drop=True)
+top_positions = (
+    lrc[lrc["Zone"].notna()]
     .sort_values("Local_Reaching_Centrality", ascending=False)
     .drop_duplicates(subset=["Zone"])
+    .index
 )
 
-for _, row in top_per_zone.iterrows():
-    row_index = explainer.lrc_natural_.index[
-        explainer.lrc_natural_["Node"] == row["Node"]
-    ].tolist()[0]
+for position in top_positions:
     plot_threshold_spectrum(
-        lrc_natural_df=explainer.lrc_natural_,
-        row_index=row_index,
-        spectral_zones_original=explainer.zones_natural_,
-        pca_info_dict_original=explainer.pca_info_natural_,
-        y_labels=y_cal,
-        output_path=f"threshold_{row['Zone']}.html",
+        lrc,
+        position,
+        explainer.zones_natural_,
+        explainer.pca_info_natural_,
+        y_cal,
+        output_path=f"threshold_{lrc.loc[position, 'Zone']}.html",
     )
 ```
 
@@ -209,15 +230,16 @@ for _, row in top_per_zone.iterrows():
 | Parameter | Default | Description |
 |---|---|---|
 | `lrc_natural_df` | — | `explainer.lrc_natural_` |
-| `row_index` | — | Integer row index of `lrc_natural_df` to plot |
-| `spectral_zones_original` | — | `explainer.zones_natural_` |
-| `pca_info_dict_original` | — | `explainer.pca_info_natural_` |
-| `y_labels` | — | Class label Series aligned with calibration rows |
+| `row_index` | — | Positional row (`iloc`) of `lrc_natural_df` to plot |
+| `zones_natural` | — | `explainer.zones_natural_` (formerly `spectral_zones_original`, still accepted with a deprecation warning) |
+| `pca_info_natural` | — | `explainer.pca_info_natural_` (formerly `pca_info_dict_original`) |
+| `y_labels` | `None` | Class labels aligned row by row with the zones; all spectra share one colour when omitted |
 | `output_path` | `None` | `.html` for interactive, `.png/.svg/.pdf` for static |
+| `title` | `None` | Figure title (`""` removes it) |
 | `class_colors` | theme | Per-class hex/CSS color mapping |
 | `theme` | `DEFAULT_THEME` | `SMXTheme` instance |
-| `width` / `height` | `900` / `450` | Pixel dimensions for static export |
-| `return_df` | `False` | If `True`, return the threshold spectrum Series |
+| `width` / `height` | `900` / `450` | Figure size in pixels |
+| `return_df` | `False` | If `True`, return `(fig, threshold_spectrum)` |
 
 ---
 
@@ -234,11 +256,7 @@ two figures directly comparable at a glance.
 ```python
 from smx import plot_lrc_bar
 
-plot_lrc_bar(
-    zone_ranking_df=explainer.lrc_natural_,
-    output_path="lrc_bar.html",
-    title="LRC Score by Spectral Zone",
-)
+fig = plot_lrc_bar(explainer.lrc_natural_, output_path="lrc_bar.html")
 ```
 
 **Key parameters**
@@ -249,9 +267,9 @@ plot_lrc_bar(
 | `output_path` | `None` | `.html` for interactive, `.png/.svg/.pdf` for static |
 | `title` | `None` | Figure title |
 | `colorscale` | theme | Plotly colorscale name for bar colors |
-| `width` / `height` | `800` / `500` | Pixel dimensions for static export |
+| `width` / `height` | `800` / `500` | Figure size in pixels |
 | `theme` | `DEFAULT_THEME` | `SMXTheme` instance |
-| `return_df` | `False` | If `True`, return the normalised ranking DataFrame |
+| `return_df` | `False` | If `True`, return `(fig, ranking_df)` with `zone/score/rank/pct` |
 
 ---
 
@@ -259,7 +277,7 @@ plot_lrc_bar(
 
 Heatmap of LRC scores across every zone–predicate combination.  Rows are
 zones (highest LRC at top), columns are predicates grouped by operator
-(`≤` then `>`) and sorted by threshold rank within each group.  Grey cells
+(`≤` then `>`) and numbered by increasing threshold within each group.  Grey cells
 indicate predicates absent from that zone.
 
 ![Predicate heatmap](../../assets/predicate_heatmap.png)
@@ -269,10 +287,7 @@ indicate predicates absent from that zone.
 ```python
 from smx import plot_predicate_heatmap
 
-plot_predicate_heatmap(
-    lrc_natural_df=explainer.lrc_natural_,
-    output_path="predicate_heatmap.html",
-)
+fig = plot_predicate_heatmap(explainer.lrc_natural_)
 ```
 
 **Key parameters**
@@ -283,16 +298,17 @@ plot_predicate_heatmap(
 | `output_path` | `None` | `.html` for interactive, `.png/.svg/.pdf` for static |
 | `title` | `None` | Figure title |
 | `colorscale` | theme | Plotly colorscale for cell colors |
-| `width` / `height` | `1000` / `550` | Pixel dimensions for static export |
+| `width` / `height` | `1000` / `550` | Figure size in pixels |
 | `theme` | `DEFAULT_THEME` | `SMXTheme` instance |
-| `return_df` | `False` | If `True`, return the pivot DataFrame (zones × predicates → LRC) |
+| `return_df` | `False` | If `True`, return `(fig, pivot)` (zones × predicates → LRC) |
 
 ---
 
 ## `plot_zone_scores`
 
 Split-violin plot of PC1 scores per spectral zone, split by class.  For
-exactly two classes the violins are mirrored; for three or more they overlap.
+exactly two classes the violins are mirrored; for three or more they are drawn
+side by side.
 This directly shows where class distributions separate in compressed spectral
 space.
 
@@ -304,20 +320,18 @@ space.
 from smx import plot_zone_scores
 
 # From the SMX zone dict (recommended)
-plot_zone_scores(
-    zones=explainer.zones_natural_,
-    y_labels=y_cal,
-    output_path="zone_scores.html",
+fig = plot_zone_scores(
+    explainer.zones_natural_,
+    y_cal,
     class_colors={"A": "#e41a1c", "B": "#377eb8"},
 )
 
 # From the raw calibration DataFrame
-plot_zone_scores(
-    zones=X_cal,
-    y_labels=y_cal,
-    spectral_cuts=spectral_cuts,
-    output_path="zone_scores.html",
-)
+fig = plot_zone_scores(X_cal, y_cal, spectral_cuts)
+
+# Reusing an aggregator fitted elsewhere (e.g. on calibration data)
+agg = ZoneAggregator(method="pca").fit(zones_cal)
+fig = plot_zone_scores(zones_test, y_test, aggregator=agg)
 ```
 
 **Key parameters**
@@ -327,21 +341,23 @@ plot_zone_scores(
 | `zones` | — | `smx.zones_natural_` dict or full calibration DataFrame |
 | `y_labels` | — | Class label Series |
 | `spectral_cuts` | `None` | Required when `zones` is a DataFrame |
+| `aggregator` | `None` | Fitted `ZoneAggregator` to compute the scores (a PCA is fitted on `zones` when omitted) |
 | `output_path` | `None` | `.html` for interactive, `.png/.svg/.pdf` for static |
 | `title` | `None` | Figure title |
 | `class_colors` | theme | Per-class hex/CSS colors |
-| `width` / `height` | `1200` / `580` | Pixel dimensions for static export |
+| `width` / `height` | `1200` / `580` | Figure size in pixels |
 | `theme` | `DEFAULT_THEME` | `SMXTheme` instance |
-| `return_df` | `False` | If `True`, return the zone PC1 scores DataFrame |
+| `return_df` | `False` | If `True`, return `(fig, zone_scores_df)` |
 
 ---
 
 ## `plot_all_thresholds_overlay`
 
-Full-spectrum overlay combining mean class spectra (solid) with the
-top-ranked predicate threshold for every zone (dashed).  Threshold line
-colors follow the LRC colorscale so the most influential zones visually
-dominate.  This gives a complete, single-figure summary of where and how the
+Full-spectrum overlay combining mean class spectra (solid, min–max envelope
+shaded) with the top-ranked predicate threshold for every zone (dashed).
+Threshold line colors follow the LRC colorscale (shown in a colorbar) so the
+most influential zones visually dominate; hover a threshold to see its zone
+and LRC.  This gives a complete, single-figure summary of where and how the
 model draws its decision boundaries across the entire spectral axis.
 
 ![All-zone threshold overlay](../../assets/all_thresholds_overlay.png)
@@ -351,13 +367,12 @@ model draws its decision boundaries across the entire spectral axis.
 ```python
 from smx import plot_all_thresholds_overlay
 
-plot_all_thresholds_overlay(
-    lrc_natural_df=explainer.lrc_natural_,
-    zones_natural=explainer.zones_natural_,
-    pca_info_natural=explainer.pca_info_natural_,
-    y_labels=y_cal,
-    spectral_cuts=spectral_cuts,
-    output_path="all_thresholds.html",
+fig = plot_all_thresholds_overlay(
+    explainer.lrc_natural_,
+    explainer.zones_natural_,
+    explainer.pca_info_natural_,
+    y_cal,
+    spectral_cuts,
     class_colors={"A": "#e41a1c", "B": "#377eb8"},
 )
 ```
@@ -369,14 +384,15 @@ plot_all_thresholds_overlay(
 | `lrc_natural_df` | — | `explainer.lrc_natural_` |
 | `zones_natural` | — | `explainer.zones_natural_` |
 | `pca_info_natural` | — | `explainer.pca_info_natural_` |
-| `y_labels` | — | Class label Series |
+| `y_labels` | — | Class label Series (`None` draws one mean spectrum over all samples) |
 | `spectral_cuts` | — | Zone boundary definitions |
 | `output_path` | `None` | `.html` for interactive, `.png/.svg/.pdf` for static |
 | `title` | `None` | Figure title |
 | `class_colors` | theme | Per-class hex/CSS colors |
-| `width` / `height` | `1200` / `500` | Pixel dimensions for static export |
+| `colorscale` | theme | Colorscale for the threshold lines |
+| `width` / `height` | `1200` / `500` | Figure size in pixels |
 | `theme` | `DEFAULT_THEME` | `SMXTheme` instance |
-| `return_df` | `False` | If `True`, return the top-predicate-per-zone DataFrame |
+| `return_df` | `False` | If `True`, return `(fig, top_per_zone)` |
 
 ---
 
@@ -384,10 +400,11 @@ plot_all_thresholds_overlay(
 
 Visualizes the progressive masking faithfulness diagnostic as a prediction-shift
 curve over cumulative top-`k` masked zones. The trapezoidal AUC is shaded, and
-the figure annotates the AUC, normalized AUC, categorical level, and percentile
+a panel to the right of the plot reports the categorical level, AUC,
+normalized AUC, metric, the level intervals and (optionally) the percentile
 against the random-ordering baseline.
 
-![SMX faithfulness curve — progressive zone masking](https://raw.githubusercontent.com/joseviniciusr/SMX/b17acb2ab91156a4aa2b4dd6c7ef5c1b303b892a/assets/faithfulness_curve.png)
+![SMX faithfulness curve — progressive zone masking](https://raw.githubusercontent.com/joseviniciusr/SMX/main/assets/faithfulness_curve.png)
 
 ### What is being evaluated
 
@@ -410,25 +427,27 @@ that removes the least-informative zones first).
 
 | Field | Type | Description |
 |---|---|---|
-| `auc` | float | Normalised trapezoidal AUC of the masking curve (0–1; higher = more faithful) |
+| `auc` | float | Trapezoidal AUC of the masking curve (higher = more faithful) |
+| `auc_normalized` | float | `auc` divided by the number of masked zones |
 | `level` | str | Quality label (see table below) |
-| `null_percentile` | float | Percentile of the true AUC against a null distribution of 500 random orderings |
+| `null_percentile` | float | Percentile of the true AUC against the AUCs of `n_random_rankings` (default 100) random orderings |
+| `null_auc_distribution` | ndarray | AUC of each random ordering (useful for diagnostic histograms) |
+| `null_auc_mean` / `null_auc_std` | float | Mean / standard deviation of the random-ordering AUCs |
 | `curve_df` | DataFrame | Columns: `k`, `masked_zone`, `masked_zones`, `score` for each masking step |
-| `plot_path` | str | Path to the saved HTML figure (when `output_path` is provided) |
-| `null_distribution` | list | AUC values from each null permutation (useful for diagnostic histograms) |
-| `k` | int | Number of top zones at which maximum prediction drop is observed |
+| `n_masked_zones` | int | Number of zones masked |
+| `metric` / `masking_strategy` | str | Settings used for the evaluation |
+| `plot_path` | str | Path to the saved figure (when `output_path` is provided) |
 
 **Quality levels** are assigned based on `null_percentile`:
 
 | Level | Condition |
 |-------|-----------|
-| *very high* | `null_percentile ≥ 95` |
-| *high* | `null_percentile ≥ 90` |
-| *moderate* | `null_percentile ≥ 75` |
-| *low* | `null_percentile ≥ 50` |
-| *very low* | `null_percentile < 50` |
+| *Very High* | `null_percentile ≥ 95` |
+| *High* | `80 ≤ null_percentile < 95` |
+| *Moderate* | `60 ≤ null_percentile < 80` |
+| *Low* | `null_percentile < 60` |
 
-- **`null_percentile`** — percentile of the true AUC against a **null distribution** built by computing the AUC for a large number of random zone orderings (default: 500 permutations). A percentile close to 100 means the LRC-based ranking is far better than random; a percentile near 50 means the ranking carries no more information than chance.
+- **`null_percentile`** — percentile of the true AUC against a **null distribution** built by computing the AUC for `n_random_rankings` random zone orderings (default: 100). A percentile close to 100 means the LRC-based ranking is far better than random; a percentile near 50 means the ranking carries no more information than chance.
 
 ### Curve interpretation
 
@@ -466,7 +485,7 @@ The `metric` parameter controls how the prediction shift is measured:
 
 ```python
 explainer.evaluate_faithfulness(X_test_prep)
-explainer.plot_faithfulness("faithfulness_curve.html")
+fig = explainer.plot_faithfulness("faithfulness_curve.html", show_percentile=True)
 ```
 
 **Key parameters**
@@ -476,10 +495,12 @@ explainer.plot_faithfulness("faithfulness_curve.html")
 | `faithfulness_result` | — | Output of `evaluate_faithfulness()` (dict with `curve_df` key) |
 | `output_path` | `None` | `.html` for interactive, `.png/.svg/.pdf` for static |
 | `title` | `None` | Figure title |
+| `colorscale` | theme | Colorscale for the curve and markers |
 | `theme` | `DEFAULT_THEME` | `SMXTheme` instance |
-| `width` / `height` | `1100` / `560` | Pixel dimensions for static export |
-| `show_percentile` | `False` | Show the random-baseline percentile annotation |
-| `return_df` | `False` | If `True`, return the masking-curve DataFrame |
+| `width` / `height` | `1100` / `560` | Figure size in pixels |
+| `show_percentile` | `False` | Add the random-baseline percentile to the summary panel |
+| `show_faithfulness_level` / `show_summary` / `show_level_intervals` | `True` | Toggle the sections of the summary panel |
+| `return_df` | `False` | If `True`, return `(fig, curve_df)` |
 
 ---
 
@@ -508,11 +529,7 @@ my_theme = SMXTheme(
 )
 
 # Apply to any plot
-plot_zone_ranking_over_spectrum(
-    ...,
-    output_path="zone_ranking.html",
-    theme=my_theme,
-)
+fig = plot_zone_ranking_over_spectrum(..., theme=my_theme)
 ```
 
 ### Theme fields
@@ -526,6 +543,7 @@ plot_zone_ranking_over_spectrum(
 | `fallback_palette` | 8-color list | Used for unlisted class labels |
 | `colorscale` | `"YlOrRd"` | Plotly colorscale for LRC zone bands |
 | `zone_opacity` | `0.28` | Zone background rectangle opacity |
+| `no_data_color` | `"rgb(220,220,220)"` | Fill for zones / heatmap cells without a score |
 | `reference_line_color` | `"#2b2b2b"` | Overall mean spectrum line color |
 | `reference_line_width` | `2` | Overall mean spectrum line width (px) |
 | `reference_line_dash` | `"dash"` | Plotly dash style for reference line |

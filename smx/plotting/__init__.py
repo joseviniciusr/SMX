@@ -1,3 +1,11 @@
+"""Plotly-based visualisations of SMX results.
+
+Every ``plot_*`` function returns a :class:`plotly.graph_objects.Figure`
+(never shown automatically), accepts ``output_path``/``title``/``theme``/
+``width``/``height`` as keyword arguments, and returns ``(fig, data)`` when
+called with ``return_df=True``.
+"""
+
 from smx.plotting.theme import DEFAULT_THEME, SMXTheme
 from smx.plotting.threshold import plot_threshold_spectrum
 from smx.plotting.zones import plot_zone_ranking_over_spectrum, plot_spectrum_with_zones

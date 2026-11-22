@@ -6,7 +6,7 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
-from smx.plotting.theme import DEFAULT_THEME, SMXTheme
+from smx.plotting.theme import SMXTheme
 from smx.plotting.zones import plot_spectrum_with_zones
 
 
@@ -18,13 +18,14 @@ def building_spectral_zones(
     svg_window_length: int = 7,
     svg_polyorder: int = 3,
     svg_deriv: int = 1,
-    ploting: bool = True,
-    plotting: Optional[bool] = None,
+    plotting: bool = False,
+    *,
+    show_minima: bool = False,
     theme: Optional[SMXTheme] = None,
     title: Optional[str] = None,
     output_path: Optional[Union[str, "Path"]] = None,
-    _show_minima: bool = False,
-) -> List[Tuple[str, Union[int, float, str], Union[int, float, str]]]:
+    **deprecated,
+) -> List[Tuple[str, float, float]]:
     """
     Detect local minima/maxima and build spectral cuts from a single spectrum.
 
@@ -48,30 +49,48 @@ def building_spectral_zones(
         Derivative order for Savitzky-Golay filtering. Use 0 for no derivative
         (smoothing only), 1 for first derivative, 2 for second derivative, etc.
         Only used when ``svg_smooth=True``.
-    ploting : bool, default True
-        When True, plot the spectrum with zone backgrounds and identified peaks.
-    plotting : bool, optional
-        Backward-compatible alias for ``ploting``.
+    plotting : bool, default False
+        When True, display the spectrum with the detected zones, backgrounds
+        and peaks (see :func:`smx.plotting.plot_spectrum_with_zones`, which
+        returns the figure itself for further customisation).
+    show_minima : bool, default False
+        Also mark the detected local minima on the plot.
     theme : SMXTheme, optional
-        Optional visual theme for plotting.
+        Visual theme for the plot.
     title : str, optional
-        Optional plot title when ``ploting=True``.
+        Plot title; ``""`` removes it.
     output_path : str or Path, optional
-        Optional output path for saving the plot (HTML or static image).
+        Export the plot to this path (HTML or static image), whether or not
+        it is displayed.
 
     Returns
     -------
     list of tuples
         Spectral cuts in the form ``(label, start, end)``.
+
+    Notes
+    -----
+    ``ploting`` (sic) and ``_show_minima`` are accepted as deprecated aliases
+    of *plotting* and *show_minima*.
     """
     try:
         import pandas as pd
     except Exception:
         pd = None
 
-    # Respect the optional alias to preserve compatibility with prior notebooks.
-    if plotting is not None:
-        ploting = plotting
+    if deprecated:
+        from smx.plotting._common import pop_deprecated_kwargs
+
+        resolved = pop_deprecated_kwargs(
+            "building_spectral_zones",
+            deprecated,
+            {"ploting": "plotting", "_show_minima": "show_minima"},
+            {"plotting": None, "show_minima": None},
+        )
+        if resolved["plotting"] is not None:
+            plotting = bool(resolved["plotting"])
+        if resolved["show_minima"] is not None:
+            show_minima = bool(resolved["show_minima"])
 
     if spectrum is None:
         raise ValueError("spectrum must be a non-empty array/Series/DataFrame.")
@@ -198,20 +217,17 @@ def building_spectral_zones(
         spectral_cuts.append((label, start_label, end_label))
 
     # Optional visualization using the shared SMX plotting theme.
-    if ploting:
-        # When no explicit theme is provided, use the 'simple_white' Plotly template
-        # instead of the SMXTheme default for building_spectral_zones.
-        effective_theme = theme
-        if effective_theme is None:
-            effective_theme = SMXTheme(template="simple_white")
-        plot_spectrum_with_zones(
-            spectrum=spectrum_series if spectrum_series is not None else values,
-            spectral_cuts=spectral_cuts,
+    if plotting or output_path is not None:
+        fig = plot_spectrum_with_zones(
+            spectrum_series if spectrum_series is not None else values,
+            spectral_cuts,
             identified_peaks=index_max,
-            identified_minima=index_min if _show_minima else None,
-            theme=effective_theme,
+            identified_minima=index_min if show_minima else None,
+            theme=theme,
             title=title,
             output_path=output_path,
         )
+        if plotting:
+            fig.show()
 
     return spectral_cuts

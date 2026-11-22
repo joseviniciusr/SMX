@@ -22,12 +22,12 @@ from sklearn.model_selection import train_test_split
 from smx import (
     SMX,
     generate_synthetic_spectral_data,
+    plot_threshold_spectrum,
     plot_zone_ranking_over_spectrum,
 )
-from smx.graph.interpretation import reconstruct_threshold_to_spectrum
 
 try:
-    import plotly.graph_objects as go
+    import plotly  # noqa: F401
 except ImportError as exc:
     raise ImportError(
         "The quickstart plotting examples require plotly. "
@@ -192,122 +192,38 @@ if "plot_path" in faithfulness:
 # =============================================================================
 # 7. Export HTML zone-ranking and threshold-spectrum plots
 # =============================================================================
-from smx.plotting import plot_threshold_spectrum
-
-_zone_ranking_kwargs = dict(
-    zone_ranking_df=smx.lrc_natural_,
-    spectral_cuts=spectral_cuts,
-    reference_spectrum=smx.zones_natural_,
-    title="SMX zone ranking over spectrum",
+# Plot functions return plotly Figures (call fig.show() to open one) and write
+# them to output_path when given.
+zone_ranking_path = output_dir / "zone_ranking_over_spectrum.html"
+plot_zone_ranking_over_spectrum(
+    smx.lrc_natural_,
+    spectral_cuts,
+    smx.zones_natural_,
+    output_path=zone_ranking_path,
     spectrum_name="Mean calibration spectrum",
     class_spectra={str(cls): X_cal[y_cal == cls] for cls in y_cal.unique()},
 )
-
-zone_ranking_path = output_dir / "zone_ranking_over_spectrum.html"
-plot_zone_ranking_over_spectrum(output_path=zone_ranking_path, **_zone_ranking_kwargs)
 print(f"\nSaved zone-ranking plot: {zone_ranking_path}")
 
-assets_dir = Path(__file__).resolve().parent.parent / "assets"
-assets_dir.mkdir(exist_ok=True)
-zone_ranking_png = assets_dir / "zone_ranking_over_spectrum.png"
-plot_zone_ranking_over_spectrum(output_path=zone_ranking_png, width=1400, height=520, **_zone_ranking_kwargs)
-print(f"Saved zone-ranking PNG:  {zone_ranking_png}")
-
-# Use the top-ranked predicate for each zone
-top_per_zone = (
-    smx.lrc_natural_[smx.lrc_natural_["Zone"].notna()]
+# Threshold spectrum of the top-ranked predicate of each zone
+lrc = smx.lrc_natural_.reset_index(drop=True)
+top_positions = (
+    lrc[lrc["Zone"].notna()]
     .sort_values("Local_Reaching_Centrality", ascending=False)
     .drop_duplicates(subset="Zone")
+    .index
 )
 
 print("\nExporting threshold-spectrum HTML plots…")
-for _, row in top_per_zone.iterrows():
-    zone_name = row["Zone"]
-    row_index = smx.lrc_natural_.index[
-        smx.lrc_natural_["Node"] == row["Node"]
-    ].tolist()[0]
+for position in top_positions:
+    zone_name = lrc.loc[position, "Zone"]
     html_path = output_dir / f"threshold_{zone_name.replace(' ', '_')}.html"
     plot_threshold_spectrum(
-        lrc_natural_df=smx.lrc_natural_,
-        row_index=row_index,
-        spectral_zones_original=smx.zones_natural_,
-        pca_info_dict_original=smx.pca_info_natural_,
-        y_labels=y_cal,
+        lrc,
+        position,
+        smx.zones_natural_,
+        smx.pca_info_natural_,
+        y_cal,
         output_path=html_path,
     )
     print(f"  Saved: {html_path}")
-
-# Also export interactive Plotly threshold-spectrum overlays (matching notebook)
-def plot_zone_and_save(lrc_natural_df, row_index, spectral_zones_original,
-                       pca_info_dict_original, y_labels, output_path):
-    zone_name = lrc_natural_df.iloc[row_index]["Zone"]
-    threshold_score = float(lrc_natural_df.iloc[row_index]["Threshold_Natural"])
-
-    threshold_spectrum = reconstruct_threshold_to_spectrum(
-        threshold_value=threshold_score,
-        zone_name=zone_name,
-        pca_info_dict=pca_info_dict_original,
-    )
-
-    zone_df = spectral_zones_original[zone_name]
-    x_values = pd.to_numeric(zone_df.columns, errors="coerce")
-
-    fig = go.Figure()
-    CLASS_COLORS = {"A": "gold", "B": "blue"}
-    seen_classes = set()
-    for idx, r in zone_df.iterrows():
-        class_label = y_labels.iloc[idx] if idx < len(y_labels) else "Unknown"
-        show_legend = class_label not in seen_classes
-        seen_classes.add(class_label)
-        fig.add_trace(
-            go.Scatter(
-                x=x_values,
-                y=r.values,
-                mode="lines",
-                line=dict(color=CLASS_COLORS.get(class_label, "rgba(128,128,128,0.3)"), width=0.5),
-                name=f"Class {class_label}",
-                legendgroup=class_label,
-                showlegend=show_legend,
-                hoverinfo="skip",
-            )
-        )
-
-    fig.add_trace(
-        go.Scatter(
-            x=x_values,
-            y=threshold_spectrum.values,
-            mode="lines",
-            line=dict(color="red", width=4, dash="dash"),
-            name=f"Threshold Spectrum ({threshold_spectrum.name})",
-        )
-    )
-
-    fig.update_layout(
-        title=f"Zone '{zone_name}' — Multivariate Threshold (Predicate: {lrc_natural_df.iloc[row_index].get('Node_Natural', '')})",
-        xaxis_title="Variables (Artificial Units)",
-        yaxis_title="Intensity (Arbitrary Units)",
-        template="plotly_white",
-        showlegend=True,
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
-    )
-
-    fig.write_html(str(output_path))
-
-# Save Plotly versions for the top-ranked predicate per zone as well
-plotly_out = Path("smx_quickstart_plots_plotly")
-plotly_out.mkdir(exist_ok=True)
-for _, row in top_per_zone.iterrows():
-    zone_name = row["Zone"]
-    row_index = smx.lrc_natural_.index[
-        smx.lrc_natural_["Node"] == row["Node"]
-    ].tolist()[0]
-    html_path = plotly_out / f"threshold_plotly_{zone_name.replace(' ', '_')}.html"
-    plot_zone_and_save(
-        lrc_natural_df=smx.lrc_natural_,
-        row_index=row_index,
-        spectral_zones_original=smx.zones_natural_,
-        pca_info_dict_original=smx.pca_info_natural_,
-        y_labels=y_cal,
-        output_path=html_path,
-    )
-    print(f"  Saved Plotly: {html_path}")

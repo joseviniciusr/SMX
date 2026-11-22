@@ -37,6 +37,7 @@ except PackageNotFoundError:
 from smx.pipeline import SMX
 from smx.zones.extraction import extract_spectral_zones
 from smx.zones.aggregation import ZoneAggregator
+from smx.zones.build import building_spectral_zones
 from smx.predicates.generation import PredicateGenerator
 from smx.predicates.bagging import PredicateBagger
 from smx.predicates.metrics import (
@@ -50,13 +51,17 @@ from smx.graph.interpretation import (
     reconstruct_threshold_to_spectrum,
     extract_predicate_info,
 )
-from smx.evaluation import progressive_masking_faithfulness
+from smx.evaluation import (
+    normalized_progressive_masking_faithfulness,
+    progressive_masking_faithfulness,
+)
 from smx.datasets.synthetic import generate_synthetic_spectral_data
 from smx.plotting import (
     DEFAULT_THEME,
     SMXTheme,
     plot_threshold_spectrum,
     plot_zone_ranking_over_spectrum,
+    plot_spectrum_with_zones,
     plot_lrc_bar,
     plot_predicate_heatmap,
     plot_zone_scores,
@@ -71,6 +76,7 @@ __all__ = [
     # zones
     "extract_spectral_zones",
     "ZoneAggregator",
+    "building_spectral_zones",
     # predicates
     "PredicateGenerator",
     "PredicateBagger",
@@ -86,11 +92,13 @@ __all__ = [
     "reconstruct_threshold_to_spectrum",
     "extract_predicate_info",
     "progressive_masking_faithfulness",
+    "normalized_progressive_masking_faithfulness",
     # plotting
     "DEFAULT_THEME",
     "SMXTheme",
     "plot_threshold_spectrum",
     "plot_zone_ranking_over_spectrum",
+    "plot_spectrum_with_zones",
     "plot_lrc_bar",
     "plot_predicate_heatmap",
     "plot_zone_scores",
