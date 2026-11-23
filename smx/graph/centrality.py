@@ -9,7 +9,11 @@ import numpy as np
 import pandas as pd
 
 
-def compute_lrc(graph: nx.DiGraph, predicates_df: pd.DataFrame) -> pd.DataFrame:
+def compute_lrc(
+    graph: nx.DiGraph,
+    predicates_df: pd.DataFrame,
+    verbose: bool = True,
+) -> pd.DataFrame:
     """Compute Local Reaching Centrality (LRC) for every node of *graph*.
 
     LRC measures how well a node can reach other nodes in the graph,
@@ -24,18 +28,49 @@ def compute_lrc(graph: nx.DiGraph, predicates_df: pd.DataFrame) -> pd.DataFrame:
         Predicate catalogue with columns ``'rule'``, ``'zone'``,
         ``'thresholds'``, ``'operator'``.
 
+    verbose : bool, default True
+        Print a progress line.
+
     Returns
     -------
     pd.DataFrame
         Columns: ``Node``, ``Local_Reaching_Centrality``, ``Zone``,
         ``Threshold``, ``Operator``.  Sorted descending by LRC.
+
+    Raises
+    ------
+    ValueError
+        If any edge weight is negative or not finite. networkx would otherwise
+        reject the whole graph and every node would silently get LRC 0.
+
+    Notes
+    -----
+    Known limitation (not yet fixed): an edge of weight exactly 0 stored as a
+    Python ``float`` makes networkx raise ``ZeroDivisionError`` for every node
+    whose shortest-path search crosses it, and those nodes get LRC 0. The same
+    edge stored as ``np.float64`` (the ``var_exp=True`` path) yields an
+    infinite distance instead, and the LRC is computed. This only happens with
+    metrics that can be exactly 0 (label-based metrics) and ``var_exp=False``.
     """
-    print("\nProcessing graph LRC…")
+    if verbose:
+        print("\nProcessing graph LRC…")
 
     if graph.number_of_nodes() == 0:
         return pd.DataFrame(
             columns=["Node", "Local_Reaching_Centrality", "Zone", "Threshold", "Operator"]
         )
+
+    for u, v, data in graph.edges(data=True):
+        w = data.get("weight", 1.0)
+        try:
+            w_float = float(w)
+        except (TypeError, ValueError):
+            raise ValueError(f"Edge {u!r} -> {v!r} has a non-numeric weight {w!r}.") from None
+        if not np.isfinite(w_float) or w_float < 0:
+            raise ValueError(
+                f"Edge {u!r} -> {v!r} has an invalid weight {w!r}: LRC needs finite, "
+                f"non-negative weights (a negative weight would make every node's LRC 0)."
+            )
 
     lrc_values: Dict[str, float] = {}
     for node in graph.nodes():
