@@ -44,6 +44,17 @@ class PredicateGraphBuilder:
         ``{zone_name: {'variance_explained': float, ...}}`` as returned by
         :class:`smx.zones.aggregation.ZoneAggregator` (``pca_info_`` attribute).
         Required when ``var_exp=True``.
+    terminal_class : str, optional
+        When given, the graph has a **single** terminal node
+        ``Class_<terminal_class>`` and the last predicate of every bag points
+        to it, regardless of ``Class_Predicted``. This is what the per-class
+        SMX uses: there the class enters through the ranking metric, not
+        through the terminal. *class_labels* is ignored in this mode. ``None``
+        (default) keeps one terminal per class with majority-vote routing.
+    verbose : bool, default True
+        Print the graph summary and the number of bidirectional pairs.
+        ``show_details`` (the list of removed edges) is honoured only when
+        ``verbose=True``.
     """
 
     def __init__(
@@ -53,6 +64,8 @@ class PredicateGraphBuilder:
         show_details: bool = True,
         var_exp: bool = False,
         pca_info_dict: Optional[Dict] = None,
+        terminal_class: Optional[str] = None,
+        verbose: bool = True,
     ) -> None:
         if var_exp and pca_info_dict is None:
             raise ValueError("pca_info_dict is required when var_exp=True.")
@@ -61,6 +74,8 @@ class PredicateGraphBuilder:
         self.show_details = show_details
         self.var_exp = var_exp
         self.pca_info_dict = pca_info_dict
+        self.terminal_class = None if terminal_class is None else str(terminal_class)
+        self.verbose = verbose
 
     def build(
         self,
@@ -89,11 +104,12 @@ class PredicateGraphBuilder:
 
         # Create one terminal node per class. Fall back to binary A/B when
         # class_labels was not supplied (legacy / backward-compatibility mode).
-        _terminal_labels: List[str] = (
-            [str(lbl) for lbl in self.class_labels]
-            if self.class_labels is not None
-            else ["A", "B"]
-        )
+        if self.terminal_class is not None:
+            _terminal_labels: List[str] = [self.terminal_class]
+        elif self.class_labels is not None:
+            _terminal_labels = [str(lbl) for lbl in self.class_labels]
+        else:
+            _terminal_labels = ["A", "B"]
         for _label in _terminal_labels:
             DG.add_node(f"Class_{_label}", node_type="terminal", class_label=_label)
 
@@ -128,7 +144,9 @@ class PredicateGraphBuilder:
             last = ordered[-1]
             DG.add_node(last, node_type="predicate")
             df_last = bag_predicates_dict[last]
-            if "Class_Predicted" in df_last.columns and not df_last["Class_Predicted"].empty:
+            if self.terminal_class is not None:
+                terminal = f"Class_{self.terminal_class}"
+            elif "Class_Predicted" in df_last.columns and not df_last["Class_Predicted"].empty:
                 majority = df_last["Class_Predicted"].value_counts().idxmax()
                 terminal = f"Class_{majority}"
             else:
@@ -145,16 +163,17 @@ class PredicateGraphBuilder:
         n_removed = self._resolve_bidirectional(DG)
         _n_terminals = sum(1 for _, a in DG.nodes(data=True) if a.get("node_type") == "terminal")
         _n_predicates = sum(1 for _, a in DG.nodes(data=True) if a.get("node_type") == "predicate")
-        print(
-            f"\n{'='*70}\n"
-            f"CONSTRUCTED GRAPH SUMMARY\n"
-            f"{'='*70}\n"
-            f"Terminal nodes ({_n_terminals}): {_terminal_labels}\n"
-            f"Predicate nodes: {_n_predicates}\n"
-            f"Edges (after removing {n_removed} bidirectional): {DG.number_of_edges()}\n"
-            f"Metric column: Perturbation\n"
-            f"Variance-exp weighting: {'ENABLED' if self.var_exp else 'DISABLED'}"
-        )
+        if self.verbose:
+            print(
+                f"\n{'='*70}\n"
+                f"CONSTRUCTED GRAPH SUMMARY\n"
+                f"{'='*70}\n"
+                f"Terminal nodes ({_n_terminals}): {_terminal_labels}\n"
+                f"Predicate nodes: {_n_predicates}\n"
+                f"Edges (after removing {n_removed} bidirectional): {DG.number_of_edges()}\n"
+                f"Metric column: Perturbation\n"
+                f"Variance-exp weighting: {'ENABLED' if self.var_exp else 'DISABLED'}"
+            )
         return DG
 
     # ------------------------------------------------------------------
@@ -189,27 +208,29 @@ class PredicateGraphBuilder:
                 processed.add((u, v))
                 processed.add((v, u))
 
-        print(f"\nTotal bidirectional pairs found: {len(pairs)}")
+        if self.verbose:
+            print(f"\nTotal bidirectional pairs found: {len(pairs)}")
+        show = self.show_details and self.verbose
         n_removed = 0
         for u, v, w_fwd, w_rev in pairs:
             if not (DG.has_edge(u, v) and DG.has_edge(v, u)):
                 continue  # already resolved
             if w_fwd > w_rev:
                 DG.remove_edge(v, u)
-                if self.show_details:
+                if show:
                     print(f"Removed: {v} → {u} ({w_rev:.4f}) | Kept: {u} → {v} ({w_fwd:.4f})")
             elif w_rev > w_fwd:
                 DG.remove_edge(u, v)
-                if self.show_details:
+                if show:
                     print(f"Removed: {u} → {v} ({w_fwd:.4f}) | Kept: {v} → {u} ({w_rev:.4f})")
             else:
                 if np.random.rand() > 0.5:
                     DG.remove_edge(v, u)
-                    if self.show_details:
+                    if show:
                         print(f"Tie! Removed: {v} → {u}")
                 else:
                     DG.remove_edge(u, v)
-                    if self.show_details:
+                    if show:
                         print(f"Tie! Removed: {u} → {v}")
             n_removed += 1
         return n_removed
