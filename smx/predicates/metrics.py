@@ -21,7 +21,7 @@ Available metrics
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -192,6 +192,32 @@ class PerturbationMetric(BasePredicateMetric):
         Print per-predicate progress.
     save_detailed_results : bool, default True
         Attach a ``'__detailed_perturbation_results__'`` key to the result.
+    per_class : {'within', 'all'}, optional
+        Also compute one importance per model output column (one per class).
+        Uses the same perturbation and the same predictions as the global
+        value (no extra model calls): ``D = |output(original) -
+        output(perturbed)|`` of shape ``(n_samples, K)``, normalised by zone
+        size exactly like the global value.
+
+        - ``'within'``: mean of ``D[:, k]`` over the predicate's samples
+          **predicted** as class *k* (column ``Class_Predicted`` of the bag).
+          NaN when fewer than ``per_class_min_samples[k]`` *distinct* samples
+          remain.
+        - ``'all'``: mean of ``D[:, k]`` over all the predicate's samples
+          (already guarded by the bagger).
+
+        Values that are not finite or not strictly positive are NaN (the
+        predicate leaves that class's chain). Only metrics that decompose by
+        output column are allowed: ``'probability_shift'`` and
+        ``'mean_abs_diff'`` (the latter with an ``(n_samples, K)`` output).
+        The ``Perturbation`` column and the row order are not affected; the
+        result gains one column ``Perturbation_<k>`` per class.
+    class_labels : sequence of str, optional
+        Label of each output column, in the estimator's output order (e.g.
+        ``estimator.classes_``). Required when *per_class* is set.
+    per_class_min_samples : dict[str, int], optional
+        Minimum number of distinct predicted-*k* samples per predicate and
+        bag (``'within'`` only, where it is required).
     """
 
     _REGRESSION_METRICS = {"mean_abs_diff",
@@ -204,6 +230,9 @@ class PerturbationMetric(BasePredicateMetric):
         "probability_shift",
         "decision_function_shift",
     }
+    # Metrics whose per-sample output change decomposes by output column.
+    _PER_CLASS_METRICS = {"probability_shift", "mean_abs_diff"}
+    _PER_CLASS_MODES = ("within", "all")
 
     def __init__(
         self,
@@ -219,6 +248,9 @@ class PerturbationMetric(BasePredicateMetric):
         zone_size_exponent: float = 1.0,
         verbose: bool = False,
         save_detailed_results: bool = True,
+        per_class: Optional[Literal["within", "all"]] = None,
+        class_labels: Optional[Sequence[Any]] = None,
+        per_class_min_samples: Optional[Dict[str, int]] = None,
     ) -> None:
         aim = "classification" if metric in self._CLASSIFICATION_METRICS else "regression" if metric in self._REGRESSION_METRICS else None
 
@@ -248,9 +280,55 @@ class PerturbationMetric(BasePredicateMetric):
         self.verbose = verbose
         self.save_detailed_results = save_detailed_results
 
+        self.per_class = per_class
+        self.class_labels: Optional[List[str]] = None
+        self.per_class_min_samples: Optional[Dict[str, int]] = None
+        if per_class is not None:
+            self._validate_per_class(per_class, class_labels, per_class_min_samples)
+
+    def _validate_per_class(self, per_class, class_labels, per_class_min_samples) -> None:
+        if per_class not in self._PER_CLASS_MODES:
+            raise ValueError(
+                f"per_class must be one of {self._PER_CLASS_MODES} or None; got {per_class!r}."
+            )
+        if self.metric not in self._PER_CLASS_METRICS:
+            raise ValueError(
+                f"per_class requires a metric that decomposes by output column "
+                f"({sorted(self._PER_CLASS_METRICS)}); got '{self.metric}'. Label-based "
+                f"metrics (prediction_change_rate, accuracy_drop, f1_drop) have no "
+                f"per-class value."
+            )
+        if class_labels is None or len(class_labels) == 0:
+            raise ValueError("per_class requires class_labels (one label per output column).")
+        labels = [str(c) for c in class_labels]
+        if len(set(labels)) != len(labels):
+            raise ValueError(f"class_labels must be unique; got {labels}.")
+        self.class_labels = labels
+        if per_class == "within":
+            if per_class_min_samples is None:
+                raise ValueError("per_class='within' requires per_class_min_samples ({label: int}).")
+            guard = {str(k): v for k, v in per_class_min_samples.items()}
+            missing = [k for k in labels if k not in guard]
+            if missing:
+                raise ValueError(f"per_class_min_samples is missing the classes {missing}.")
+            for k in labels:
+                v = guard[k]
+                if isinstance(v, bool) or not isinstance(v, (int, np.integer)) or v < 1:
+                    raise ValueError(
+                        f"per_class_min_samples[{k!r}] must be an int >= 1; got {v!r}."
+                    )
+            self.per_class_min_samples = {k: int(guard[k]) for k in labels}
+
     @property
     def metric_column(self) -> str:
         return "Perturbation"
+
+    @property
+    def per_class_columns(self) -> Dict[str, str]:
+        """``{class_label: column_name}`` of the per-class columns (empty if off)."""
+        if self.per_class is None:
+            return {}
+        return {k: f"Perturbation_{k}" for k in self.class_labels}
 
     def compute(self, bags_dict: Dict[str, Dict[str, pd.DataFrame]]) -> Dict[str, pd.DataFrame]:
         """Compute perturbation importance for each predicate in each bag.
@@ -272,18 +350,26 @@ class PerturbationMetric(BasePredicateMetric):
 
         results: Dict[str, pd.DataFrame] = {}
         detailed_results: Dict[str, Dict] = {}
+        per_class = self.per_class is not None
+        n_classes = len(self.class_labels) if per_class else 0
+        no_class_values = np.full(n_classes, np.nan)
 
         for fold_name, predicates_dict in bags_dict.items():
             if not predicates_dict:
-                results[fold_name] = pd.DataFrame({"Predicate": [], "Perturbation": []})
+                empty = pd.DataFrame({"Predicate": [], "Perturbation": []})
+                for col in self.per_class_columns.values():
+                    empty[col] = pd.Series(dtype=float)
+                results[fold_name] = empty
                 continue
 
             fold_metrics: Dict[str, float] = {}
+            fold_class_values: Dict[str, np.ndarray] = {}
             fold_detailed: Dict[str, Dict] = {}
 
             for pred_rule, df_info in predicates_dict.items():
                 sample_indices = df_info["Sample_Index"].values.tolist()
                 n_samples = len(sample_indices)
+                fold_class_values[pred_rule] = no_class_values
 
                 if n_samples == 0:
                     fold_metrics[pred_rule] = 0.0
@@ -325,10 +411,17 @@ class PerturbationMetric(BasePredicateMetric):
                         X_perturbed[col] = col_stats[col]
 
                 # ── Compute importance ────────────────────────────────────
+                abs_delta = None
                 try:
-                    importance, importance_for_ranking = self._compute_importance(
-                        X_eval, X_perturbed, accuracy_score, f1_score
-                    )
+                    if per_class:
+                        importance, importance_for_ranking, abs_delta = self._compute_importance(
+                            X_eval, X_perturbed, accuracy_score, f1_score,
+                            return_abs_delta=True,
+                        )
+                    else:
+                        importance, importance_for_ranking = self._compute_importance(
+                            X_eval, X_perturbed, accuracy_score, f1_score
+                        )
                 except (TypeError, ValueError) as exc:
                     try:
                         y_sample = np.array(self.estimator.predict(X_eval.iloc[:1])).flatten()
@@ -363,6 +456,11 @@ class PerturbationMetric(BasePredicateMetric):
                 if self.normalize_by_zone_size and n_zone_features > 0:
                     importance_for_ranking /= n_zone_features ** self.zone_size_exponent
 
+                if per_class:
+                    fold_class_values[pred_rule] = self._per_class_values(
+                        abs_delta, df_info, n_zone_features
+                    )
+
                 fold_metrics[pred_rule] = float(importance_for_ranking)
                 fold_detailed[pred_rule] = {
                     "importance": float(importance),
@@ -382,6 +480,13 @@ class PerturbationMetric(BasePredicateMetric):
                 .sort_values("Perturbation", ascending=False)
                 .reset_index(drop=True)
             )
+            # Per-class columns are attached *after* the global table is built
+            # and sorted, so its 'Perturbation' column and row order are
+            # exactly those of the global-only computation.
+            for j, col in enumerate(self.per_class_columns.values()):
+                metrics_df[col] = np.array(
+                    [fold_class_values[p][j] for p in metrics_df["Predicate"]], dtype=float
+                )
             results[fold_name] = metrics_df
             detailed_results[fold_name] = fold_detailed
 
@@ -399,20 +504,73 @@ class PerturbationMetric(BasePredicateMetric):
     # Private helpers
     # ------------------------------------------------------------------
 
+    def _per_class_values(
+        self,
+        abs_delta: np.ndarray,
+        df_info: pd.DataFrame,
+        n_zone_features: int,
+    ) -> np.ndarray:
+        """Per-class importance of one predicate in one bag (NaN = excluded)."""
+        D = np.asarray(abs_delta, dtype=float)
+        n_classes = len(self.class_labels)
+        if D.ndim != 2 or D.shape[1] != n_classes:
+            raise ValueError(
+                f"per_class needs one model output column per class: expected shape "
+                f"(n_samples, {n_classes}) for class_labels={self.class_labels}, got "
+                f"{D.shape}. With 'mean_abs_diff' the estimator must return a 2-D "
+                f"output (e.g. a PLS fitted on one-hot targets)."
+            )
+        if self.per_class == "within":
+            if "Class_Predicted" not in df_info.columns:
+                raise ValueError(
+                    "per_class='within' needs the 'Class_Predicted' column in every bag "
+                    "(SMX.fit adds it from y_class_labels)."
+                )
+            predicted = df_info["Class_Predicted"].astype(str).values
+            sample_ids = df_info["Sample_Index"].values
+
+        values = np.full(n_classes, np.nan)
+        for j, label in enumerate(self.class_labels):
+            if self.per_class == "within":
+                rows = predicted == label
+                # Guard on *distinct* samples (duplicates appear with replace=True).
+                if len(np.unique(sample_ids[rows])) < self.per_class_min_samples[label]:
+                    continue
+                v = D[rows, j].mean()
+            else:  # 'all'
+                v = D[:, j].mean()
+            if self.normalize_by_zone_size and n_zone_features > 0:
+                v /= n_zone_features ** self.zone_size_exponent
+            if np.isfinite(v) and v > 0:
+                values[j] = v
+        return values
+
     def _compute_importance(
         self,
         X_eval: pd.DataFrame,
         X_perturbed: pd.DataFrame,
         accuracy_score,
         f1_score,
-    ) -> Tuple[float, float]:
-        """Return (raw_importance, importance_for_ranking)."""
+        return_abs_delta: bool = False,
+    ) -> Union[Tuple[float, float], Tuple[float, float, np.ndarray]]:
+        """Return ``(raw_importance, importance_for_ranking)``.
+
+        With ``return_abs_delta=True`` (per-class mode; only for
+        ``'probability_shift'`` and ``'mean_abs_diff'``) a third element is
+        returned: ``|output(original) - output(perturbed)|`` with the model
+        output's shape, computed from the very same predictions.  The scalar
+        values are computed exactly as without the flag.
+        """
         if self.aim == "regression":
-            y_orig = np.array(self.estimator.predict(X_eval)).flatten()
-            y_pert = np.array(self.estimator.predict(X_perturbed)).flatten()
+            raw_orig = np.array(self.estimator.predict(X_eval))
+            raw_pert = np.array(self.estimator.predict(X_perturbed))
+            y_orig = raw_orig.flatten()
+            y_pert = raw_pert.flatten()
 
             if self.metric == "mean_abs_diff":
                 imp = float(np.mean(np.abs(y_orig - y_pert)))
+                if return_abs_delta:
+                    return imp, imp, np.abs(raw_orig.astype(float) - raw_pert.astype(float))
                 return imp, imp
             elif self.metric == "mean_diff":
                 imp = float(np.mean(y_orig - y_pert))
@@ -446,6 +604,10 @@ class PerturbationMetric(BasePredicateMetric):
             prob_orig = self.estimator.predict_proba(X_eval)
             prob_pert = self.estimator.predict_proba(X_perturbed)
             shift = np.mean(np.sum(np.abs(prob_orig - prob_pert), axis=1) / 2.0)
+            if return_abs_delta:
+                return float(shift), float(shift), np.abs(
+                    np.asarray(prob_orig, dtype=float) - np.asarray(prob_pert, dtype=float)
+                )
             return float(shift), float(shift)
 
         else:  # decision_function_shift
