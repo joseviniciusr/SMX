@@ -25,7 +25,11 @@ from smx.predicates.generation import PredicateGenerator
 from smx.predicates.bagging import PredicateBagger
 from smx.predicates.metrics import PerturbationMetric
 from smx.graph.builder import PredicateGraphBuilder
-from smx.graph.centrality import compute_lrc, aggregate_lrc_across_seeds
+from smx.graph.centrality import (
+    compute_lrc,
+    aggregate_lrc_across_seeds,
+    aggregate_lrc_across_seeds_per_class,
+)
 from smx.graph.interpretation import map_thresholds_to_natural
 from smx.evaluation.faithfulness import progressive_masking_faithfulness
 from smx.evaluation.normalized_faithfulness import (
@@ -35,6 +39,39 @@ from smx.evaluation.normalized_faithfulness import (
 logger = logging.getLogger(__name__)
 
 SpectralCuts = List[tuple]   # list of (name, start, end) or (name, start, end, group)
+
+_PER_CLASS_MODES = ("within", "all")
+
+
+def _resolve_per_class_mode(per_class: Union[bool, str, None]) -> Optional[str]:
+    """``False``/``None`` → ``None``; ``True`` → ``'within'``; a mode → itself."""
+    if per_class is None or per_class is False:
+        return None
+    if per_class is True:
+        return "within"
+    if isinstance(per_class, str) and per_class in _PER_CLASS_MODES:
+        return per_class
+    raise ValueError(
+        f"per_class must be False, True, 'within' or 'all'; got {per_class!r}."
+    )
+
+
+def _validate_per_class_min_samples(value: Union[float, int]) -> None:
+    if isinstance(value, bool):
+        raise ValueError("per_class_min_samples must be a float in (0, 1] or an int >= 1, not a bool.")
+    if isinstance(value, (int, np.integer)):
+        if value < 1:
+            raise ValueError(f"per_class_min_samples as an int must be >= 1; got {value}.")
+        return
+    if isinstance(value, (float, np.floating)):
+        if not (0.0 < float(value) <= 1.0):
+            raise ValueError(
+                f"per_class_min_samples as a float must be in (0, 1]; got {value}."
+            )
+        return
+    raise ValueError(
+        f"per_class_min_samples must be a float in (0, 1] or an int >= 1; got {value!r}."
+    )
 
 
 class SMX:
@@ -106,6 +143,54 @@ class SMX:
         Weight graph edges by PC1 explained variance of the source zone.
     show_graph_details : bool, default False
         Print bidirectional-edge details during graph construction.
+    per_class : bool or {'within', 'all'}, default False
+        Also produce one zone ranking **per class** (``True`` ≡ ``'within'``).
+        The class enters through the ranking metric: for each class *k* the
+        importance of a predicate is the mean of ``|Δ output_k|`` (same
+        perturbation, same predictions, no extra model calls), and a graph
+        with a single terminal ``Class_<k>`` is built from the bags ordered
+        by that metric (chain "B1b").
+
+        - ``'within'``: the mean is taken over the predicate's samples
+          **predicted** as *k* only. Recommended: it answers "what makes the
+          model call these samples *k*".
+        - ``'all'``: the mean is taken over all the predicate's samples
+          (the global population). Mostly driven by the other classes'
+          samples; with K = 2 it equals the global ranking.
+
+        Only ``'probability_shift'`` and ``'mean_abs_diff'`` (with an
+        ``(n_samples, K)`` output, e.g. PLS on one-hot targets) decompose by
+        class; other metrics raise ``ValueError``. The global outputs are
+        identical with or without *per_class*.
+    per_class_min_samples : float or int, default 0.2
+        ``'within'`` only (ignored by ``'all'``, whose population is already
+        guarded by the bagger at 20 % of the dataset). Minimum number of
+        *distinct* predicted-*k* samples a predicate must have in a bag to
+        enter class *k*'s chain. A float in (0, 1] is a fraction of the
+        number of calibration samples predicted as *k* (``max(1,
+        int(f · n_k))``, mirroring the bagger's 20 % rule); an int ≥ 1 is an
+        absolute count.
+    per_class_output_labels : sequence, optional
+        Class label of each model output column, in order. Defaults to
+        ``estimator.classes_``; required for estimators without it (e.g. a
+        ``PLSRegression`` used as a classifier).
+
+    Notes
+    -----
+    *Per-class limitations.* The perturbation replaces a zone by the
+    calibration median. In ``'within'`` mode a class whose typical zone value
+    coincides with that median (a class defined by exclusion, or the middle
+    class of an ordinal axis) shows little change and its relevant zones can
+    be under-ranked; ``'all'`` captures them, at the price of mixing in the
+    other classes' samples. Predicates with a non-positive per-class value
+    are left out of that class's chain, whereas the global chain keeps
+    zero-valued predicates.
+
+    *Known limitations of the global output (not yet fixed).* (i)
+    ``lrc_unique_`` deduplicates on ``Zone``, and terminal nodes (``Zone =
+    None``) take part in it. (ii) With ``var_exp=False`` and a metric that can
+    be exactly 0 (label-based metrics), :func:`smx.graph.centrality.compute_lrc`
+    sets the LRC of nodes upstream of a zero-weight edge to 0.
 
     Attributes (set after :meth:`fit`)
     ------------------------------------
@@ -137,6 +222,29 @@ class SMX:
     faithfulness\_ : dict
         Progressive top-k masking evaluation summary produced by
         :meth:`evaluate_faithfulness`.
+    per_class_mode\_ : {'within', 'all'} or None
+        Resolved *per_class* (``None`` when disabled). All the per-class
+        attributes below are ``None`` when it is ``None``.
+    per_class_labels\_ : list of str
+        Class labels of the per-class outputs (model output order).
+    per_class_min_samples\_ : dict[str, int] or None
+        Effective ``'within'`` guard per class; ``None`` in ``'all'`` mode.
+    lrc_per_class\_ : dict[str, pd.DataFrame]
+        Per class: mean LRC across seeds of every predicate (no terminal
+        rows), with ``N_Seeds`` (seeds in which the predicate appeared).
+        Classes without any valid seed are absent (a warning is logged).
+    lrc_unique_per_class\_ : dict[str, pd.DataFrame]
+        Per class: one row per zone (its highest-LRC predicate).
+    lrc_natural_per_class\_ : dict[str, pd.DataFrame] or None
+        *lrc_per_class_* with natural-scale thresholds (only with
+        ``X_cal_natural``).
+    graphs_by_class_by_seed\_ : dict[str, dict[int, nx.DiGraph]]
+        Per-class graphs (single terminal ``Class_<k>``).
+    valid_seeds_per_class\_ : dict[str, list[int]]
+        Seeds that produced a usable graph for each class.
+    per_class_coverage\_ : pd.DataFrame
+        One row per (seed, class): bags, predicate/bag rows, rows evaluated
+        and excluded (below the guard or non-positive), graph status.
     """
 
     def __init__(
@@ -156,12 +264,28 @@ class SMX:
         zone_size_exponent: float = 1.0,
         var_exp: bool = True,
         show_graph_details: bool = False,
+        per_class: Union[bool, str] = False,
+        per_class_min_samples: Union[float, int] = 0.2,
+        per_class_output_labels: Optional[Sequence[Any]] = None,
     ) -> None:
         if estimator is None:
             raise ValueError(
                 "estimator is required. Provide a trained sklearn-compatible model "
                 "with predict() and (for probability_shift) predict_proba() methods."
             )
+        per_class_mode = _resolve_per_class_mode(per_class)
+        _validate_per_class_min_samples(per_class_min_samples)
+        if per_class_mode is not None and perturbation_metric not in PerturbationMetric._PER_CLASS_METRICS:
+            raise ValueError(
+                f"per_class requires a perturbation_metric that decomposes by output column "
+                f"({sorted(PerturbationMetric._PER_CLASS_METRICS)}); got '{perturbation_metric}'."
+            )
+        if per_class_output_labels is not None:
+            labels = [str(c) for c in per_class_output_labels]
+            if len(labels) == 0 or len(set(labels)) != len(labels):
+                raise ValueError(
+                    f"per_class_output_labels must be non-empty and unique; got {labels}."
+                )
 
         self.spectral_cuts = spectral_cuts
         self.quantiles = quantiles
@@ -179,6 +303,10 @@ class SMX:
         self.zone_size_exponent = zone_size_exponent
         self.var_exp = var_exp
         self.show_graph_details = show_graph_details
+        self.per_class = per_class
+        self.per_class_min_samples = per_class_min_samples
+        self.per_class_output_labels = per_class_output_labels
+        self.per_class_mode_: Optional[str] = per_class_mode
 
         # Result attributes — populated by fit()
         self.lrc_natural_: Optional[pd.DataFrame] = None
@@ -193,6 +321,17 @@ class SMX:
         self.valid_seeds_: List[int] = []
         self.faithfulness_: Optional[Dict[str, Any]] = None
         self.normalized_faithfulness_: Optional[Dict[str, Any]] = None
+        self._reset_per_class_results()
+
+    def _reset_per_class_results(self) -> None:
+        self.per_class_labels_: Optional[List[str]] = None
+        self.per_class_min_samples_: Optional[Dict[str, int]] = None
+        self.lrc_per_class_: Optional[Dict[str, pd.DataFrame]] = None
+        self.lrc_unique_per_class_: Optional[Dict[str, pd.DataFrame]] = None
+        self.lrc_natural_per_class_: Optional[Dict[str, pd.DataFrame]] = None
+        self.graphs_by_class_by_seed_: Optional[Dict[str, Dict[int, nx.DiGraph]]] = None
+        self.valid_seeds_per_class_: Optional[Dict[str, List[int]]] = None
+        self.per_class_coverage_: Optional[pd.DataFrame] = None
 
     # ------------------------------------------------------------------
     # Public interface
@@ -244,6 +383,32 @@ class SMX:
                 f"Got {len(unique_classes)}: {unique_classes}."
             )
         n_cal = len(X_cal_prep)
+
+        # ── Per-class set-up (labels of the model outputs + 'within' guard) ─
+        self._reset_per_class_results()
+        per_class_mode = self.per_class_mode_
+        per_class_labels: List[str] = []
+        per_class_guard: Optional[Dict[str, int]] = None
+        if per_class_mode is not None:
+            per_class_labels = self._resolve_output_labels()
+            unknown = sorted(set(unique_classes) - set(per_class_labels))
+            if unknown:
+                raise ValueError(
+                    f"y_class_labels contain {unknown}, which are not among the model "
+                    f"output labels {per_class_labels} (from "
+                    f"{'per_class_output_labels' if self.per_class_output_labels is not None else 'estimator.classes_'}). "
+                    f"Labels are compared as strings."
+                )
+            if per_class_mode == "within":
+                counts = y_class_labels.value_counts()
+                per_class_guard = {
+                    k: self._effective_guard(int(counts.get(k, 0))) for k in per_class_labels
+                }
+            self.per_class_labels_ = per_class_labels
+            self.per_class_min_samples_ = per_class_guard
+            per_class_lrc: Dict[str, Dict[int, pd.DataFrame]] = {k: {} for k in per_class_labels}
+            per_class_graphs: Dict[str, Dict[int, nx.DiGraph]] = {k: {} for k in per_class_labels}
+            coverage_rows: List[Dict[str, Any]] = []
 
         # ── Step 1: zone extraction + PCA aggregation ─────────────────────
         logger.debug("Extracting spectral zones…")
@@ -301,6 +466,9 @@ class SMX:
                 metric=self.perturbation_metric,
                 normalize_by_zone_size=self.normalize_by_zone_size,
                 zone_size_exponent=self.zone_size_exponent,
+                per_class=per_class_mode,
+                class_labels=per_class_labels or None,
+                per_class_min_samples=per_class_guard,
             )
             rankings = metric_obj.compute(bags)
 
@@ -315,6 +483,14 @@ class SMX:
             )
             graph = builder.build(bags, rankings)  # metric_column removed
             graphs_by_seed[seed] = graph
+
+            # 3e. Per-class graphs + LRC (independent of the global graph)
+            if per_class_mode is not None:
+                self._fit_per_class_seed(
+                    seed, bags, rankings, predicates_df, pca_info,
+                    metric_obj.per_class_columns,
+                    per_class_lrc, per_class_graphs, coverage_rows,
+                )
 
             # 3d. LRC
             predicate_nodes = [
@@ -366,6 +542,33 @@ class SMX:
         self.lrc_ = lrc
         self.lrc_unique_ = lrc_unique
 
+        # ── Step 4b: per-class aggregation ───────────────────────────────
+        if per_class_mode is not None:
+            self.graphs_by_class_by_seed_ = per_class_graphs
+            self.valid_seeds_per_class_ = {}
+            self.lrc_per_class_ = {}
+            self.lrc_unique_per_class_ = {}
+            for k in per_class_labels:
+                valid = [s for s in self.seeds if s in per_class_lrc[k]]
+                self.valid_seeds_per_class_[k] = valid
+                if not valid:
+                    logger.warning(
+                        "Class %r produced no usable per-class graph in any seed — it is "
+                        "absent from lrc_per_class_.",
+                        k,
+                    )
+                    continue
+                lrc_k, lrc_unique_k = aggregate_lrc_across_seeds_per_class(
+                    per_class_lrc[k], valid
+                )
+                self.lrc_per_class_[k] = lrc_k
+                self.lrc_unique_per_class_[k] = lrc_unique_k
+            self.per_class_coverage_ = pd.DataFrame(
+                coverage_rows,
+                columns=["Seed", "Class", "N_Bags", "N_Predicate_Bag_Rows",
+                         "N_Evaluated", "N_Excluded", "Graph_Status"],
+            )
+
         # ── Step 5: map thresholds to natural scale (optional) ───────────
         if X_cal_natural is not None:
             logger.debug("Mapping thresholds to natural scale…")
@@ -381,6 +584,15 @@ class SMX:
                 zone_sums_preprocessed=zone_scores,
                 zone_sums_natural=zone_scores_natural,
             )
+            if per_class_mode is not None:
+                self.lrc_natural_per_class_ = {
+                    k: map_thresholds_to_natural(
+                        lrc_df=lrc_k,
+                        zone_sums_preprocessed=zone_scores,
+                        zone_sums_natural=zone_scores_natural,
+                    )
+                    for k, lrc_k in self.lrc_per_class_.items()
+                }
         else:
             logger.info(
                 "X_cal_natural was not provided to SMX.fit(); skipping natural-scale threshold mapping. "
@@ -391,6 +603,103 @@ class SMX:
             self.pca_info_natural_ = None
 
         return self
+
+    # ------------------------------------------------------------------
+    # Per-class helpers
+    # ------------------------------------------------------------------
+
+    def _resolve_output_labels(self) -> List[str]:
+        """Label of each model output column, as strings, in output order."""
+        if self.per_class_output_labels is not None:
+            return [str(c) for c in self.per_class_output_labels]
+        classes = getattr(self.estimator, "classes_", None)
+        if classes is None:
+            raise ValueError(
+                "per_class needs the class label of each model output column: the "
+                f"estimator ({type(self.estimator).__name__}) has no 'classes_', so pass "
+                "per_class_output_labels=[...] (e.g. the labels of a PLS one-hot target, "
+                "in column order)."
+            )
+        return [str(c) for c in classes]
+
+    def _effective_guard(self, n_class: int) -> int:
+        """'within' guard for a class with *n_class* predicted calibration samples."""
+        value = self.per_class_min_samples
+        if isinstance(value, (int, np.integer)) and not isinstance(value, bool):
+            return int(value)
+        return max(1, int(n_class * float(value)))
+
+    def _fit_per_class_seed(
+        self,
+        seed: int,
+        bags: Dict[str, Dict[str, pd.DataFrame]],
+        rankings: Dict[str, pd.DataFrame],
+        predicates_df: pd.DataFrame,
+        pca_info: Dict,
+        class_columns: Dict[str, str],
+        lrc_store: Dict[str, Dict[int, pd.DataFrame]],
+        graph_store: Dict[str, Dict[int, nx.DiGraph]],
+        coverage_rows: List[Dict[str, Any]],
+    ) -> None:
+        """Build the class graphs of one seed and store their LRC tables."""
+        for label, column in class_columns.items():
+            class_rankings: Dict[str, pd.DataFrame] = {}
+            n_rows = n_evaluated = 0
+            for bag_name, ranking_df in rankings.items():
+                if bag_name.startswith("__"):
+                    continue  # '__detailed_perturbation_results__'
+                n_rows += len(ranking_df)
+                ranked = (
+                    ranking_df.loc[ranking_df[column].notna(), ["Predicate", column]]
+                    .rename(columns={column: "Perturbation"})
+                    .sort_values("Perturbation", ascending=False, kind="mergesort")
+                    .reset_index(drop=True)
+                )
+                n_evaluated += len(ranked)
+                class_rankings[bag_name] = ranked
+
+            builder = PredicateGraphBuilder(
+                terminal_class=label,
+                random_state=seed,
+                show_details=False,
+                var_exp=self.var_exp,
+                pca_info_dict=pca_info if self.var_exp else None,
+                verbose=False,
+            )
+            graph = builder.build(bags, class_rankings)
+            graph_store[label][seed] = graph
+
+            predicate_nodes = [
+                n for n, attr in graph.nodes(data=True) if attr.get("node_type") == "predicate"
+            ]
+            status = "ok"
+            if len(predicate_nodes) < 1 or graph.number_of_nodes() < 2:
+                status = "undersized"
+            else:
+                lrc_df = compute_lrc(graph, predicates_df, verbose=False)
+                predicate_lrc = lrc_df.loc[
+                    lrc_df["Node"].isin(predicate_nodes), "Local_Reaching_Centrality"
+                ]
+                if not bool((predicate_lrc > 0).any()):
+                    status = "all_zero_lrc"
+                else:
+                    lrc_df["Seed"] = seed
+                    lrc_store[label][seed] = lrc_df
+            if status != "ok":
+                logger.warning(
+                    "Seed %d, class %r: per-class graph is %s — excluded from the "
+                    "aggregation of that class.",
+                    seed, label, status,
+                )
+            coverage_rows.append({
+                "Seed": seed,
+                "Class": label,
+                "N_Bags": len(class_rankings),
+                "N_Predicate_Bag_Rows": n_rows,
+                "N_Evaluated": n_evaluated,
+                "N_Excluded": n_rows - n_evaluated,
+                "Graph_Status": status,
+            })
 
     def evaluate_faithfulness(
         self,
