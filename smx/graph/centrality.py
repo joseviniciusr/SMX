@@ -156,3 +156,59 @@ def aggregate_lrc_across_seeds(
     )
 
     return lrc_df, lrc_unique_df
+
+
+def aggregate_lrc_across_seeds_per_class(
+    lrc_by_seed: Dict[int, pd.DataFrame],
+    random_seeds: List[int],
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Aggregate the per-seed LRC tables of **one class** across seeds.
+
+    Unlike :func:`aggregate_lrc_across_seeds`, terminal nodes (``Class_*``)
+    are dropped, so the deduplicated table has exactly one row per zone, and
+    the number of seeds in which each predicate appeared is reported.
+
+    Parameters
+    ----------
+    lrc_by_seed : dict
+        ``{seed: lrc_df}`` as returned by :func:`compute_lrc` for the class
+        graphs of one class.
+    random_seeds : list of int
+        Seeds to include (keys of *lrc_by_seed*).
+
+    Returns
+    -------
+    lrc_df : pd.DataFrame
+        Columns ``Node``, ``Local_Reaching_Centrality`` (mean over the seeds
+        in which the predicate appears), ``Zone``, ``Threshold``,
+        ``Operator``, ``N_Seeds``; sorted descending by LRC.
+    lrc_unique_df : pd.DataFrame
+        One row per zone (its highest-LRC predicate), same columns.
+    """
+    frames = [lrc_by_seed[seed].copy() for seed in random_seeds if seed in lrc_by_seed]
+    if not frames:
+        raise ValueError("lrc_by_seed contains none of the requested seeds.")
+
+    lrc_all = pd.concat(frames, ignore_index=True)
+    lrc_all = lrc_all[~lrc_all["Node"].astype(str).str.startswith("Class_")]
+
+    lrc_df = (
+        lrc_all.groupby("Node")
+        .agg(
+            Local_Reaching_Centrality=("Local_Reaching_Centrality", "mean"),
+            Zone=("Zone", "first"),
+            Threshold=("Threshold", "first"),
+            Operator=("Operator", "first"),
+            N_Seeds=("Local_Reaching_Centrality", "size"),
+        )
+        .reset_index()
+        .sort_values(["Local_Reaching_Centrality", "Node"], ascending=[False, True])
+        .reset_index(drop=True)
+    )
+
+    lrc_unique_df = (
+        lrc_df.drop_duplicates(subset=["Zone"], keep="first")
+        .reset_index(drop=True)
+    )
+
+    return lrc_df, lrc_unique_df
