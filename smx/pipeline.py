@@ -335,6 +335,16 @@ class SMX:
                     seed,
                 )
                 continue
+            predicate_lrc = lrc_df_seed.loc[
+                lrc_df_seed["Node"].isin(predicate_nodes), "Local_Reaching_Centrality"
+            ]
+            if len(predicate_lrc) and bool((predicate_lrc == 0).all()):
+                logger.warning(
+                    "Seed %d: every predicate has LRC 0 in the global graph (e.g. the "
+                    "perturbation metric is zero everywhere) — the seed is kept, but its "
+                    "ranking carries no information.",
+                    seed,
+                )
             lrc_df_seed["Seed"] = seed
             lrc_by_seed[seed] = lrc_df_seed
 
