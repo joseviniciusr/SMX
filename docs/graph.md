@@ -18,6 +18,23 @@ to the bag's majority predicted class. With `terminal_class="A"` the graph has
 a single terminal `Class_A` reached by every bag; this is what the per-class
 SMX uses (see below). `verbose=False` silences the summary print.
 
+Only predicates with a positive, finite weight (the ranking value, times the
+zone's PC1 explained variance when `var_exp=True`) enter a bag's chain. A
+predicate with weight 0 in a bag is left out of that bag's chain, so the
+graph never holds a zero-weight edge (it would break the LRC of every node
+upstream of it). The predicates left out are recorded on the graph:
+
+- `graph.graph["zero_effect_predicates"]`: evaluated, but with weight 0 in
+  every bag in which they appeared. `compute_lrc` reports them with LRC 0.
+- `graph.graph["non_finite_predicates"]`: only non-finite values (not
+  evaluated); they get no row.
+- `graph.graph["n_zero_weight_rows"]`: number of predicate/bag rows left out
+  because their weight was 0.
+
+A zone that is constant in the calibration set has an undefined PC1
+explained variance; `ZoneAggregator` sets it to 0 (with a warning), so with
+`var_exp=True` its predicates have weight 0 and LRC 0.
+
 ## Compute LRC
 
 ```python
@@ -32,18 +49,28 @@ When multiple seeds are used, aggregate their LRC rankings:
 lrc, lrc_unique = aggregate_lrc_across_seeds(lrc_by_seed, random_seeds)
 ```
 
-`compute_lrc` requires finite, non-negative edge weights and raises
-`ValueError` otherwise (networkx would silently give every node LRC 0 when
-a single weight is negative).
+`compute_lrc` requires finite, strictly positive edge weights and raises
+`ValueError` otherwise. It appends the graph's `zero_effect_predicates` with
+LRC 0, after the graph's own nodes. A graph without edges gives LRC 0 to
+every node.
+
+`aggregate_lrc_across_seeds` averages each predicate over the seeds in which
+it has a row (a zero-effect predicate counts as 0 in that seed). The terminal
+nodes (`Class_*`) are part of the graphs and of the per-seed tables, but they
+are dropped from the aggregated tables, so `SMX.lrc_`, `SMX.lrc_unique_` and
+`SMX.lrc_natural_` only hold predicates (one row per zone in `lrc_unique_`).
 
 ## Per-class graphs
 
 With `SMX(..., per_class="within" | "all")`, `PerturbationMetric` adds one
 column `Perturbation_<k>` per class to every bag ranking (the `Perturbation`
 column and the row order are unchanged). For each class, the pipeline orders
-each bag by that column (dropping NaN: below the `within` guard or a
-non-positive value), builds a graph with `terminal_class=k`, and aggregates
-the seeds with:
+each bag by that column, builds a graph with `terminal_class=k`, and
+aggregates the seeds with the function below. A NaN value means *not
+evaluated* for that class (below the `within` guard, or not finite) and the
+predicate is dropped from that bag's ranking; a value of exactly 0 means
+*evaluated, no effect*, and the predicate gets LRC 0, as in the global
+ranking.
 
 ```python
 from smx import aggregate_lrc_across_seeds_per_class
