@@ -71,6 +71,8 @@ from smx.plotting import (
     plot_zone_scores,
     plot_all_thresholds_overlay,
     plot_faithfulness_curve,
+    get_class_color_map,
+    resolve_color,
 )
 
 __all__ = [
@@ -109,6 +111,8 @@ __all__ = [
     "plot_zone_scores",
     "plot_all_thresholds_overlay",
     "plot_faithfulness_curve",
+    "get_class_color_map",
+    "resolve_color",
     # datasets
     "generate_synthetic_spectral_data",
 ]

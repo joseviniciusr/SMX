@@ -51,10 +51,9 @@ def fitted():
         quantiles=[0.25, 0.5, 0.75],
         n_repetitions=2,
         n_bags=5,
-        metric="perturbation",
         estimator=model,
     )
-    explainer.fit(X_prep, pd.Series(model.predict_proba(X_prep)[:, 0]), X_cal_natural=X)
+    explainer.fit(X_prep, model.predict(X_prep), X_cal_natural=X)
     explainer.evaluate_faithfulness(X_prep, n_random_rankings=10)
     return explainer, X, y
 
