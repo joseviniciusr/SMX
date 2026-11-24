@@ -218,3 +218,23 @@ def fit_smx(data, estimator, *, y=None, natural=True, **kwargs):
         smx = SMX(spectral_cuts=data["cuts"], estimator=estimator, **params)
         smx.fit(X, y, X_cal_natural=(X * 1.7 + 3.0) if natural else None)
     return smx
+
+
+def add_constant_zone(data, estimator, value: float = 5.0, n_ch: int = 3):
+    """Append a zone ``Zk`` that is constant in the whole dataset (B2).
+
+    Returns new ``(data, estimator)``: the estimator gets zero weights on the
+    new channels, so its predictions are unchanged.
+    """
+    import copy
+
+    X = data["X"].copy()
+    start = X.shape[1]
+    names = [str(float(start + i)) for i in range(n_ch)]
+    for c in names:
+        X[c] = value
+    est = copy.deepcopy(estimator)
+    est.W = np.vstack([est.W, np.zeros((n_ch, est.W.shape[1]))])
+    out = dict(data, X=X, cuts=data["cuts"] + [("Zk", float(start), float(start + n_ch - 1))],
+               zones=data["zones"] + ["Zk"])
+    return out, est

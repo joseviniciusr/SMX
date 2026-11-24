@@ -7,11 +7,14 @@ PCA model fitted on calibration data can be applied consistently to
 prediction data.
 """
 
+import logging
 from typing import Dict, Literal, Optional, Union
 
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
+
+logger = logging.getLogger(__name__)
 
 
 _SIMPLE_AGGREGATORS = {
@@ -90,12 +93,24 @@ class ZoneAggregator:
             for zone_name, zone_df in spectral_zones_dict.items():
                 X_zone = zone_df.values.astype(float)
                 pca = PCA(n_components=1)
-                pca.fit(X_zone)
+                # A constant zone has zero total variance: sklearn's ratio is
+                # 0/0 (NaN, with a RuntimeWarning). Treat it as 0 explicitly.
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    pca.fit(X_zone)
+                variance_explained = pca.explained_variance_ratio_[0]
+                if not np.isfinite(variance_explained):
+                    logger.warning(
+                        "Zone %r is constant in the calibration set (zero variance): its "
+                        "variance_explained is set to 0; with var_exp=True its predicates "
+                        "get weight 0 and LRC 0.",
+                        zone_name,
+                    )
+                    variance_explained = np.float64(0.0)
                 self.pca_info_[zone_name] = {
                     "pca_model": pca,
                     "loadings": pca.components_[0],
                     "mean": pca.mean_,
-                    "variance_explained": pca.explained_variance_ratio_[0],
+                    "variance_explained": variance_explained,
                     "columns": zone_df.columns.tolist(),
                 }
         self.is_fitted_ = True

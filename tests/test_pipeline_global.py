@@ -11,7 +11,8 @@ import pytest
 
 from smx import SMX
 from smx.graph import builder as builder_module
-from helpers import ConstantProbaStub, LinearSoftmaxStub, fit_smx, make_known_truth, quiet
+from helpers import (ConstantProbaStub, LinearSoftmaxStub, add_constant_zone, fit_smx,
+                     make_known_truth, quiet)
 
 LRC_COLUMNS = ["Node", "Local_Reaching_Centrality", "Zone", "Threshold", "Operator"]
 
@@ -138,6 +139,21 @@ def test_zero_effect_zone_gets_lrc_zero_and_does_not_poison_the_others(known_tru
     for g in s.graphs_by_seed_.values():
         assert all(d["weight"] > 0 for *_, d in g.edges(data=True))
         assert any(p.startswith("Zn ") for p in g.graph["zero_effect_predicates"])
+
+
+@pytest.mark.parametrize("var_exp", [True, False])
+def test_constant_zone_gets_lrc_zero_with_a_warning(known_truth, caplog, var_exp):
+    """B2: a zone constant in the calibration set used to give NaN weights
+    (var_exp=True: fit failed) or a zero-weight edge (var_exp=False: every LRC 0)."""
+    data, est = add_constant_zone(known_truth, known_truth["est"])
+    with caplog.at_level(logging.WARNING):
+        s = fit_smx(data, est, var_exp=var_exp)
+    assert s.pca_info_["Zk"]["variance_explained"] == 0.0
+    assert any("'Zk' is constant" in r.getMessage() for r in caplog.records)
+    zone_lrc = s.lrc_unique_.set_index("Zone")["Local_Reaching_Centrality"]
+    assert zone_lrc.loc["Zk"] == 0.0 and zone_lrc.loc["Zn"] == 0.0
+    assert (zone_lrc.drop(["Zk", "Zn"]) > 0).all()
+    assert np.isfinite(zone_lrc.values).all()
 
 
 def test_warns_about_predicates_with_a_non_finite_metric(known_truth, caplog, monkeypatch):
