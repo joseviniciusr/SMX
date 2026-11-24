@@ -12,6 +12,10 @@ so the graph has zero-weight edges stored as Python floats and the known Q6
 defect of ``compute_lrc`` sets every predicate's LRC to 0. The golden freezes
 that output on purpose (it is today's behaviour); fixing Q6 must change this
 configuration, and only this one, and then requires ``--update-golden``.
+
+``proba_no_zero`` gives the noise zone a small effect, so its graphs have no
+zero-weight edge: it is the control configuration that must stay identical
+when the treatment of zero weights changes.
 """
 
 from __future__ import annotations
@@ -55,10 +59,22 @@ def _config(name):
         data = make_known_truth(seed=11, classes=("A", "B"))
         est = LinearSoftmaxStub(classes=("A", "B"), n_ch=data["n_ch"], n_zones=data["n_zones"])
         return fit_smx(data, est, perturbation_metric="probability_shift")
+    if name == "proba_no_zero":
+        data, est = _s1()
+        _give_noise_zone_an_effect(est, data)
+        return fit_smx(data, est, perturbation_metric="probability_shift", var_exp=True)
     raise KeyError(name)
 
 
-CONFIGS = ["proba_varexp", "proba_no_varexp", "mean_abs_diff_2d", "binary"]
+def _give_noise_zone_an_effect(est, data):
+    """Small non-zero weights on the noise zone Zn, so no predicate has effect 0."""
+    n_ch = data["n_ch"]
+    zn = data["zones"].index("Zn")
+    est.W[zn * n_ch:(zn + 1) * n_ch, 0] = 0.3 / n_ch
+    est.W[zn * n_ch:(zn + 1) * n_ch, 1] = -0.2 / n_ch
+
+
+CONFIGS = ["proba_varexp", "proba_no_varexp", "mean_abs_diff_2d", "binary", "proba_no_zero"]
 
 
 # ---------------------------------------------------------------------------
@@ -134,6 +150,14 @@ def test_global_outputs_are_bit_identical_with_per_class(request, fitted_global,
         assert dict(g.nodes(data=True)) == dict(h.nodes(data=True))
         assert {(u, v): d["weight"] for u, v, d in g.edges(data=True)} == \
                {(u, v): d["weight"] for u, v, d in h.edges(data=True)}
+
+
+def test_zero_free_configuration_has_no_zero_weight_edge():
+    """``proba_no_zero`` is the control of the zero-weight rule: it must stay
+    bit-identical across that change, which needs a graph without zeros."""
+    s = _config("proba_no_zero")
+    weights = [d["weight"] for g in s.graphs_by_seed_.values() for *_, d in g.edges(data=True)]
+    assert weights and min(weights) > 0
 
 
 def test_golden_global_output(request):
