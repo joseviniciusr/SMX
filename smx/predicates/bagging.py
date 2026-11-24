@@ -80,7 +80,9 @@ class PredicateBagger:
             Each inner DataFrame contains the zone score values and the original
             sample indices for the samples that satisfy the predicate rule.
         """
-        np.random.seed(self.random_seed)
+        # Local generator: same draws as seeding numpy's global one, without
+        # touching the caller's global random state.
+        rng = np.random.RandomState(self.random_seed)
 
         n_total = len(zone_scores_df)
         n_samples_per_bag = max(1, int(n_total * self.n_samples_fraction))
@@ -91,7 +93,7 @@ class PredicateBagger:
         for bag_num in range(1, self.n_bags + 1):
             # ── Sample selection ──────────────────────────────────────────
             if self.sample_bagging:
-                bag_indices = np.random.choice(
+                bag_indices = rng.choice(
                     range(n_total),
                     size=n_samples_per_bag,
                     replace=self.replace,
@@ -101,7 +103,7 @@ class PredicateBagger:
 
             # ── Predicate selection ───────────────────────────────────────
             if self.predicate_bagging:
-                selected_rules = np.random.choice(
+                selected_rules = rng.choice(
                     all_rules,
                     size=min(self.n_predicates_per_bag, len(all_rules)),
                     replace=False,

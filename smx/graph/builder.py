@@ -98,7 +98,9 @@ class PredicateGraphBuilder:
         nx.DiGraph
             Directed graph with ``'weight'`` edge attributes.
         """
-        np.random.seed(self.random_state)
+        # Local generator (tie-breaks in _resolve_bidirectional): same draws as
+        # seeding numpy's global one, without touching the global random state.
+        self._rng = np.random.RandomState(self.random_state)
 
         DG: nx.DiGraph = nx.DiGraph()
 
@@ -224,7 +226,7 @@ class PredicateGraphBuilder:
                 if show:
                     print(f"Removed: {u} → {v} ({w_fwd:.4f}) | Kept: {v} → {u} ({w_rev:.4f})")
             else:
-                if np.random.rand() > 0.5:
+                if self._rng.rand() > 0.5:
                     DG.remove_edge(v, u)
                     if show:
                         print(f"Tie! Removed: {v} → {u}")

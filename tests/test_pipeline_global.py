@@ -71,6 +71,18 @@ def test_fit_is_deterministic_and_idempotent(known_truth, fitted_global):
         pd.testing.assert_frame_equal(other.lrc_unique_, fitted_global.lrc_unique_, check_exact=True)
 
 
+def test_fit_leaves_numpy_global_random_state_untouched(known_truth, fitted_global):
+    """B6: SMX draws from local generators, never from numpy's global one."""
+    np.random.seed(12345)
+    before = np.random.get_state()
+    s = fit_smx(known_truth, known_truth["est"], per_class="within")
+    after = np.random.get_state()
+    assert before[0] == after[0] and np.array_equal(before[1], after[1])
+    assert before[2:] == after[2:]
+    # ... and the result does not depend on what the caller did to it.
+    pd.testing.assert_frame_equal(s.lrc_, fitted_global.lrc_, check_exact=True)
+
+
 def test_bags_are_annotated_with_the_given_labels(known_truth, monkeypatch):
     """The pipeline annotates every bag frame with y_class_labels[Sample_Index]."""
     seen = []
