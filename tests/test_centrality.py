@@ -1,9 +1,4 @@
-"""compute_lrc and the cross-seed aggregations.
-
-Known, not-yet-fixed defects are pinned with ``xfail(strict=True)``: the day
-one of them is fixed, the test "unexpectedly passes", the strict flag turns
-that into a failure, and the marker must be removed consciously.
-"""
+"""compute_lrc and the cross-seed aggregations."""
 
 from __future__ import annotations
 
@@ -65,21 +60,51 @@ def test_lrc_is_invariant_to_a_common_scale_of_the_weights():
     np.testing.assert_allclose(lb.loc[la.index].values, la.values, rtol=1e-12)
 
 
-@pytest.mark.parametrize("bad", [-0.1, float("nan"), float("inf"), np.float64(-1e-12)])
+@pytest.mark.parametrize("bad", [-0.1, float("nan"), float("inf"), np.float64(-1e-12),
+                                 0.0, np.float64(0.0)])
 def test_invalid_weights_raise_instead_of_zeroing_the_graph(bad):
-    """N2: networkx rejects negative weights for the whole graph (every LRC -> 0)."""
+    """N2 + B1: a weight must be finite and > 0. A negative one makes networkx
+    reject the graph; a zero one breaks every upstream LRC (as a Python float,
+    all of them became 0). The builder never creates such edges."""
     g, _ = _chain([0.6, 0.3, 0.2])
     g[RULES[1]][RULES[2]]["weight"] = bad
     with pytest.raises(ValueError, match="invalid weight"):
         compute_lrc(g, PREDICATES, verbose=False)
 
 
-def test_empty_graph_and_all_zero_graph():
+def test_empty_graph_and_graph_without_edges():
     empty = compute_lrc(nx.DiGraph(), PREDICATES, verbose=False)
     assert empty.empty and list(empty.columns) == [
         "Node", "Local_Reaching_Centrality", "Zone", "Threshold", "Operator"]
-    g, _ = _chain([0.0, 0.0])
+    g = nx.DiGraph()
+    g.add_node("Class_A", node_type="terminal")
+    g.add_node("Class_B", node_type="terminal")
     assert (_lrc(g)["Local_Reaching_Centrality"] == 0.0).all()
+
+
+def test_zero_effect_predicates_are_reported_with_lrc_zero():
+    """B1: evaluated predicates left out of the chain come back with LRC 0,
+    with the catalogue metadata, after every node of the graph."""
+    g, nodes = _chain([0.6, 0.3])
+    g.graph["zero_effect_predicates"] = [RULES[3], RULES[2]]
+    df = compute_lrc(g, PREDICATES, verbose=False)
+    assert list(df["Node"]) == [RULES[0], RULES[1], "Class_A", RULES[3], RULES[2]]
+    meta = df.set_index("Node")
+    assert meta.loc[RULES[2], ["Local_Reaching_Centrality", "Zone", "Threshold", "Operator"]
+                    ].tolist() == [0.0, "Zc", -0.2, "<="]
+    # Positive LRC values are the chain's own, untouched by the extra rows.
+    np.testing.assert_allclose(meta.loc[nodes, "Local_Reaching_Centrality"].values,
+                               oracle_lrc_chain([0.6, 0.3]), rtol=1e-12)
+
+
+def test_only_zero_effect_predicates_gives_an_all_zero_table():
+    """A model insensitive to every zone: terminals only, every predicate LRC 0."""
+    g = nx.DiGraph()
+    g.add_node("Class_A", node_type="terminal")
+    g.graph["zero_effect_predicates"] = RULES[:2]
+    df = compute_lrc(g, PREDICATES, verbose=False)
+    assert set(df["Node"]) == {"Class_A", *RULES[:2]}
+    assert (df["Local_Reaching_Centrality"] == 0.0).all()
 
 
 def test_verbose_flag(capsys):
@@ -90,15 +115,13 @@ def test_verbose_flag(capsys):
     assert "Processing graph LRC" in capsys.readouterr().out
 
 
-@pytest.mark.xfail(strict=True, reason="Q6 (deferred): a zero-weight Python-float edge "
-                   "zeroes the LRC of every upstream node; np.float64 does not.")
-def test_zero_weight_edge_does_not_depend_on_the_number_type():
-    weights = [0.5, 0.0, 0.2, 0.1]
-    as_float = _lrc(_chain(weights, float)[0])["Local_Reaching_Centrality"]
-    as_f64 = _lrc(_chain(weights, np.float64)[0])["Local_Reaching_Centrality"]
-    assert as_f64.loc[RULES[0]] > 0            # holds today
-    assert as_float.loc[RULES[0]] > 0          # fails today: silently 0.0
-    np.testing.assert_allclose(as_float.loc[as_f64.index].values, as_f64.values, rtol=1e-12)
+@pytest.mark.parametrize("cast", [float, np.float64])
+def test_zero_weight_edge_raises_whatever_the_number_type(cast):
+    """Q6/B1: a zero-weight edge used to zero every upstream LRC (Python float)
+    or give infinite, arbitrarily tied path lengths (np.float64)."""
+    g, _ = _chain([0.5, 0.0, 0.2, 0.1], cast)
+    with pytest.raises(ValueError, match="invalid weight"):
+        compute_lrc(g, PREDICATES, verbose=False)
 
 
 # ---------------------------------------------------------------------------

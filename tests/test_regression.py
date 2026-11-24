@@ -7,15 +7,14 @@ between machines, nothing else).  Regenerate only on purpose with::
 
     pytest tests/test_regression.py --update-golden
 
-Note on ``proba_no_varexp``: the stub's noise zone has an effect of exactly 0,
-so the graph has zero-weight edges stored as Python floats and the known Q6
-defect of ``compute_lrc`` sets every predicate's LRC to 0. The golden freezes
-that output on purpose (it is today's behaviour); fixing Q6 must change this
-configuration, and only this one, and then requires ``--update-golden``.
+History of deliberate updates: the terminal rows (``Class_*``) were removed
+from the final tables (B3), and zero-effect predicates were taken out of the
+bag chains and reported with LRC 0 (B1). The noise zone ``Zn`` of the stub has
+an effect of exactly 0, so B1 changed every configuration that contains it.
 
 ``proba_no_zero`` gives the noise zone a small effect, so its graphs have no
-zero-weight edge: it is the control configuration that must stay identical
-when the treatment of zero weights changes.
+zero-weight edge: it is the control configuration, and it stayed identical
+through B1.
 """
 
 from __future__ import annotations

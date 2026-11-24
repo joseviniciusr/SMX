@@ -26,6 +26,20 @@ class PredicateGraphBuilder:
     * keeping the edge with the higher accumulated weight;
     * breaking ties randomly.
 
+    Only predicates with a **positive, finite** weight (ranking metric, times
+    the zone's explained variance when ``var_exp=True``) enter the chain of a
+    bag; the others are left out of that bag, so the graph never holds a
+    zero-weight edge. Predicates that were evaluated but never entered the
+    graph are recorded in ``graph.graph``:
+
+    * ``'zero_effect_predicates'``: weight ``<= 0`` in at least one bag and
+      never positive. :func:`smx.graph.centrality.compute_lrc` reports them
+      with LRC 0 (evaluated, no effect).
+    * ``'non_finite_predicates'``: only non-finite weights (NaN/inf). They
+      are not reported (not evaluated).
+    * ``'n_zero_weight_rows'``: number of predicate/bag rows left out because
+      their weight was ``<= 0``.
+
     Parameters
     ----------
     class_labels : list of str, optional
@@ -96,7 +110,9 @@ class PredicateGraphBuilder:
         Returns
         -------
         nx.DiGraph
-            Directed graph with ``'weight'`` edge attributes.
+            Directed graph with positive ``'weight'`` edge attributes. The
+            predicates left out of every chain are listed in ``graph.graph``
+            (see the class docstring).
         """
         # Local generator (tie-breaks in _resolve_bidirectional): same draws as
         # seeding numpy's global one, without touching the global random state.
@@ -115,6 +131,10 @@ class PredicateGraphBuilder:
         for _label in _terminal_labels:
             DG.add_node(f"Class_{_label}", node_type="terminal", class_label=_label)
 
+        zero_seen: set = set()
+        non_finite_seen: set = set()
+        n_zero_rows = 0
+
         # ── Phase 1: accumulate edge weights ─────────────────────────────
         for bag_name, bag_predicates_dict in bags_result.items():
             if bag_name not in predicate_ranking_dict:
@@ -123,24 +143,36 @@ class PredicateGraphBuilder:
             if ranking_df.empty:
                 continue
 
-            ordered = [
-                p for p in ranking_df["Predicate"].tolist()
-                if p in bag_predicates_dict
-            ]
-            if not ordered:
-                continue
-
             lookup: Dict[str, float] = dict(
                 zip(ranking_df["Predicate"], ranking_df["Perturbation"])
             )
+
+            # Chain = predicates with a positive, finite weight, in ranking
+            # order. A zero weight would make every upstream node's LRC
+            # meaningless, so such a predicate leaves this bag's chain.
+            weights: Dict[str, float] = {}
+            ordered: List[str] = []
+            for p in ranking_df["Predicate"].tolist():
+                if p not in bag_predicates_dict:
+                    continue
+                w = self._edge_weight(p, lookup)
+                if not np.isfinite(w):
+                    non_finite_seen.add(p)
+                elif w <= 0:
+                    zero_seen.add(p)
+                    n_zero_rows += 1
+                else:
+                    weights[p] = w
+                    ordered.append(p)
+            if not ordered:
+                continue
 
             for i in range(len(ordered) - 1):
                 src = ordered[i]
                 dst = ordered[i + 1]
                 DG.add_node(src, node_type="predicate")
                 DG.add_node(dst, node_type="predicate")
-                w = self._edge_weight(src, lookup)
-                self._accumulate(DG, src, dst, w, bag_name)
+                self._accumulate(DG, src, dst, weights[src], bag_name)
 
             # Last predicate → terminal
             last = ordered[-1]
@@ -158,13 +190,18 @@ class PredicateGraphBuilder:
                     if attr.get("node_type") == "terminal"
                 ]
                 terminal = _available_terminals[0] if _available_terminals else "Class_A"
-            w = self._edge_weight(last, lookup)
-            self._accumulate(DG, last, terminal, w, bag_name)
+            self._accumulate(DG, last, terminal, weights[last], bag_name)
 
         # ── Phase 2: resolve bidirectional edges ─────────────────────────
         n_removed = self._resolve_bidirectional(DG)
         _n_terminals = sum(1 for _, a in DG.nodes(data=True) if a.get("node_type") == "terminal")
-        _n_predicates = sum(1 for _, a in DG.nodes(data=True) if a.get("node_type") == "predicate")
+        _predicate_nodes = {n for n, a in DG.nodes(data=True) if a.get("node_type") == "predicate"}
+        _n_predicates = len(_predicate_nodes)
+        DG.graph["zero_effect_predicates"] = sorted(zero_seen - _predicate_nodes)
+        DG.graph["non_finite_predicates"] = sorted(
+            non_finite_seen - _predicate_nodes - zero_seen
+        )
+        DG.graph["n_zero_weight_rows"] = n_zero_rows
         if self.verbose:
             print(
                 f"\n{'='*70}\n"
@@ -172,6 +209,8 @@ class PredicateGraphBuilder:
                 f"{'='*70}\n"
                 f"Terminal nodes ({_n_terminals}): {_terminal_labels}\n"
                 f"Predicate nodes: {_n_predicates}\n"
+                f"Predicates left out (weight <= 0 in every bag): "
+                f"{len(DG.graph['zero_effect_predicates'])}\n"
                 f"Edges (after removing {n_removed} bidirectional): {DG.number_of_edges()}\n"
                 f"Metric column: Perturbation\n"
                 f"Variance-exp weighting: {'ENABLED' if self.var_exp else 'DISABLED'}"

@@ -151,7 +151,7 @@ def test_all_mode_matches_oracle_column_by_column(s1):
             if expected > 0:
                 assert got == pytest.approx(expected, rel=RTOL)
             else:
-                assert np.isnan(got)
+                assert got == 0.0          # evaluated, no effect (NaN = not evaluated)
 
 
 def test_all_mode_mean_abs_diff_2d_sums_to_k_times_global():
@@ -176,7 +176,7 @@ def test_binary_all_mode_equals_the_global_value():
     checked = 0
     for _, row in _rows(res):
         if row["Perturbation"] == 0:
-            assert np.isnan(row["Perturbation_A"]) and np.isnan(row["Perturbation_B"])
+            assert row["Perturbation_A"] == 0.0 and row["Perturbation_B"] == 0.0
             continue
         assert row["Perturbation_A"] == pytest.approx(row["Perturbation"], rel=1e-10)
         assert row["Perturbation_B"] == pytest.approx(row["Perturbation"], rel=1e-10)
@@ -210,7 +210,7 @@ def test_within_mode_matches_oracle_including_the_guard(s1):
                 assert got == pytest.approx(expected, rel=RTOL)
                 n_value += 1
             else:
-                assert np.isnan(got)
+                assert got == 0.0          # evaluated, no effect (NaN = below the guard)
     assert n_value > 50 and n_guarded > 0
 
 
@@ -250,8 +250,9 @@ def test_within_requires_the_class_predicted_column(s1):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("mode", ["within", "all"])
-def test_zero_effect_predicates_are_nan_per_class_but_zero_globally(s1, mode):
-    """The noise zone Zn has no weight in the stub: its effect is exactly 0 (N9)."""
+def test_zero_effect_predicates_are_zero_per_class_and_globally(s1, mode):
+    """The noise zone Zn has no weight in the stub: its effect is exactly 0.
+    It is 0.0 (evaluated, no effect) per class too; NaN means not evaluated."""
     kwargs = dict(per_class=mode, class_labels=["A", "B", "C"])
     if mode == "within":
         kwargs["per_class_min_samples"] = {"A": 1, "B": 1, "C": 1}
@@ -260,7 +261,10 @@ def test_zero_effect_predicates_are_nan_per_class_but_zero_globally(s1, mode):
     assert zn
     for row in zn:
         assert row["Perturbation"] == 0.0
-        assert row[["Perturbation_A", "Perturbation_B", "Perturbation_C"]].isna().all()
+        per_class = row[["Perturbation_A", "Perturbation_B", "Perturbation_C"]]
+        assert ((per_class == 0.0) | per_class.isna()).all()
+        if mode == "all":
+            assert (per_class == 0.0).all()
 
 
 def test_per_class_columns_follow_labels_not_output_position(s1):

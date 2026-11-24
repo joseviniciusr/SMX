@@ -182,14 +182,16 @@ class SMX:
     coincides with that median (a class defined by exclusion, or the middle
     class of an ordinal axis) shows little change and its relevant zones can
     be under-ranked; ``'all'`` captures them, at the price of mixing in the
-    other classes' samples. Predicates with a non-positive per-class value
-    are left out of that class's chain, whereas the global chain keeps
-    zero-valued predicates.
+    other classes' samples.
 
-    *Known limitation of the global output (not yet fixed).* With
-    ``var_exp=False`` and a metric that can be exactly 0 (label-based
-    metrics), :func:`smx.graph.centrality.compute_lrc` sets the LRC of nodes
-    upstream of a zero-weight edge to 0.
+    *Zero effect vs. not evaluated* (global and per-class alike). In each bag,
+    a predicate whose edge weight (metric, times the zone's explained
+    variance when ``var_exp=True``) is 0 is left out of that bag's chain. A
+    predicate evaluated in a seed but with no effect in any of its bags gets
+    a row with LRC 0 for that seed (it counts in the mean across seeds). A
+    predicate never evaluated in a seed (below the ``'within'`` guard, or a
+    non-finite metric) has no row for that seed. A model insensitive to
+    every zone therefore gives tables of zeros, with a warning.
 
     Attributes (set after :meth:`fit`)
     ------------------------------------
@@ -244,8 +246,13 @@ class SMX:
     valid_seeds_per_class\_ : dict[str, list[int]]
         Seeds that produced a usable graph for each class.
     per_class_coverage\_ : pd.DataFrame
-        One row per (seed, class): bags, predicate/bag rows, rows evaluated
-        and excluded (below the guard or non-positive), graph status.
+        One row per (seed, class): ``N_Bags``, ``N_Predicate_Bag_Rows``,
+        ``N_Evaluated`` (rows with a value), ``N_Below_Guard`` (rows not
+        evaluated: below the guard or not finite), ``N_Zero`` (evaluated rows
+        left out of the chain because their weight is 0) and
+        ``Graph_Status``: ``'ok'``, ``'all_zero'`` (every evaluated predicate
+        has effect 0: kept, all LRC 0) or ``'undersized'`` (nothing evaluated:
+        the seed is not used for that class).
     """
 
     def __init__(
@@ -498,7 +505,16 @@ class SMX:
                 n for n, attr in graph.nodes(data=True)
                 if attr.get("node_type") == "predicate"
             ]
-            if len(predicate_nodes) < 1 or graph.number_of_nodes() < 2:
+            zero_effect = graph.graph.get("zero_effect_predicates", [])
+            non_finite = graph.graph.get("non_finite_predicates", [])
+            if non_finite:
+                logger.warning(
+                    "Seed %d: %d predicate(s) had a non-finite perturbation in every bag "
+                    "and were left out (not evaluated): %s",
+                    seed, len(non_finite), ", ".join(non_finite[:5])
+                    + (" …" if len(non_finite) > 5 else ""),
+                )
+            if not predicate_nodes and not zero_effect:
                 logger.warning(
                     "Seed %d produced an undersized graph (nodes=%d, predicate_nodes=%d) — skipping.",
                     seed, graph.number_of_nodes(), len(predicate_nodes)
@@ -513,7 +529,8 @@ class SMX:
                 )
                 continue
             predicate_lrc = lrc_df_seed.loc[
-                lrc_df_seed["Node"].isin(predicate_nodes), "Local_Reaching_Centrality"
+                ~lrc_df_seed["Node"].astype(str).str.startswith("Class_"),
+                "Local_Reaching_Centrality",
             ]
             if len(predicate_lrc) and bool((predicate_lrc == 0).all()):
                 logger.warning(
@@ -567,7 +584,7 @@ class SMX:
             self.per_class_coverage_ = pd.DataFrame(
                 coverage_rows,
                 columns=["Seed", "Class", "N_Bags", "N_Predicate_Bag_Rows",
-                         "N_Evaluated", "N_Excluded", "Graph_Status"],
+                         "N_Evaluated", "N_Below_Guard", "N_Zero", "Graph_Status"],
             )
 
         # ── Step 5: map thresholds to natural scale (optional) ───────────
@@ -673,32 +690,33 @@ class SMX:
             predicate_nodes = [
                 n for n, attr in graph.nodes(data=True) if attr.get("node_type") == "predicate"
             ]
-            status = "ok"
-            if len(predicate_nodes) < 1 or graph.number_of_nodes() < 2:
+            zero_effect = graph.graph.get("zero_effect_predicates", [])
+            if not predicate_nodes and not zero_effect:
                 status = "undersized"
-            else:
-                lrc_df = compute_lrc(graph, predicates_df, verbose=False)
-                predicate_lrc = lrc_df.loc[
-                    lrc_df["Node"].isin(predicate_nodes), "Local_Reaching_Centrality"
-                ]
-                if not bool((predicate_lrc > 0).any()):
-                    status = "all_zero_lrc"
-                else:
-                    lrc_df["Seed"] = seed
-                    lrc_store[label][seed] = lrc_df
-            if status != "ok":
                 logger.warning(
-                    "Seed %d, class %r: per-class graph is %s — excluded from the "
-                    "aggregation of that class.",
-                    seed, label, status,
+                    "Seed %d, class %r: no predicate was evaluated for this class — the "
+                    "seed is excluded from the aggregation of that class.",
+                    seed, label,
                 )
+            else:
+                status = "ok" if predicate_nodes else "all_zero"
+                if status == "all_zero":
+                    logger.warning(
+                        "Seed %d, class %r: every evaluated predicate has effect 0 for "
+                        "this class — the seed is kept, but all its LRC values are 0.",
+                        seed, label,
+                    )
+                lrc_df = compute_lrc(graph, predicates_df, verbose=False)
+                lrc_df["Seed"] = seed
+                lrc_store[label][seed] = lrc_df
             coverage_rows.append({
                 "Seed": seed,
                 "Class": label,
                 "N_Bags": len(class_rankings),
                 "N_Predicate_Bag_Rows": n_rows,
                 "N_Evaluated": n_evaluated,
-                "N_Excluded": n_rows - n_evaluated,
+                "N_Below_Guard": n_rows - n_evaluated,
+                "N_Zero": int(graph.graph.get("n_zero_weight_rows", 0)),
                 "Graph_Status": status,
             })
 

@@ -43,6 +43,80 @@ def test_predicates_absent_from_the_bag_are_skipped_in_the_chain():
     assert _edges(_build(bags, rankings)) == {(P1, P3): 0.4, (P3, "Class_A"): 0.1}
 
 
+@pytest.mark.parametrize("bad", [0.0, -0.2, float("nan"), float("inf")])
+def test_non_positive_or_non_finite_weight_leaves_the_chain(bad):
+    """B1: the predicate is left out of that bag's chain; its predecessor points
+    to the next positive predicate (or to the terminal)."""
+    bags = {"Bag_1": _bag([P1, P2, P3])}
+    rankings = {"Bag_1": _ranking([(P1, 0.9), (P2, bad), (P3, 0.1)])}
+    g = _build(bags, rankings)
+    assert _edges(g) == {(P1, P3): 0.9, (P3, "Class_A"): 0.1}
+    assert P2 not in g
+    zero = [P2] if np.isfinite(bad) else []
+    assert g.graph["zero_effect_predicates"] == zero
+    assert g.graph["non_finite_predicates"] == ([] if zero else [P2])
+    assert g.graph["n_zero_weight_rows"] == len(zero)
+
+
+def test_last_positive_predicate_points_to_the_terminal():
+    bags = {"Bag_1": _bag([P1, P2, P3])}
+    rankings = {"Bag_1": _ranking([(P1, 0.9), (P2, 0.0), (P3, 0.0)])}
+    g = _build(bags, rankings)
+    assert _edges(g) == {(P1, "Class_A"): 0.9}
+    assert g.graph["zero_effect_predicates"] == [P2, P3]
+    assert g.graph["n_zero_weight_rows"] == 2
+
+
+def test_predicate_positive_in_one_bag_is_not_reported_as_zero_effect():
+    bags = {"Bag_1": _bag([P1, P2]), "Bag_2": _bag([P1, P2])}
+    rankings = {"Bag_1": _ranking([(P1, 0.9), (P2, 0.0)]),
+                "Bag_2": _ranking([(P2, 0.3), (P1, 0.2)])}
+    g = _build(bags, rankings)
+    assert P2 in g and g.graph["zero_effect_predicates"] == []
+    assert g.graph["n_zero_weight_rows"] == 1
+
+
+def test_only_zero_weights_gives_a_graph_of_terminals():
+    bags = {"Bag_1": _bag([P1, P2])}
+    rankings = {"Bag_1": _ranking([(P1, 0.0), (P2, 0.0)])}
+    g = _build(bags, rankings)
+    assert g.number_of_edges() == 0
+    assert {n for n, a in g.nodes(data=True) if a["node_type"] == "predicate"} == set()
+    assert g.graph["zero_effect_predicates"] == [P1, P2]
+
+
+def test_zero_rows_give_the_same_graph_as_removing_them():
+    """Oracle: leaving zero-weight rows in the rankings is the same as deleting
+    them beforehand (same nodes, edges and weights)."""
+    rng = np.random.default_rng(3)
+    rules = [f"Z{z} <= {t:.2f}" for z in "abcdef" for t in (0.1, 0.5)]
+    bags, with_zero, without_zero = {}, {}, {}
+    for b in range(6):
+        chosen = list(rng.choice(rules, size=8, replace=False))
+        values = np.where(rng.random(8) < 0.35, 0.0, rng.random(8))
+        rk = _ranking(list(zip(chosen, values))).sort_values(
+            "Perturbation", ascending=False, kind="mergesort")
+        bags[f"Bag_{b}"] = _bag(chosen)
+        with_zero[f"Bag_{b}"] = rk
+        without_zero[f"Bag_{b}"] = rk[rk["Perturbation"] > 0]
+    a, b = _build(bags, with_zero), _build(bags, without_zero)
+    assert dict(a.nodes(data=True)) == dict(b.nodes(data=True))
+    assert _edges(a) == _edges(b)
+    assert a.graph["n_zero_weight_rows"] > 0 and b.graph["n_zero_weight_rows"] == 0
+
+
+def test_zone_with_zero_variance_leaves_the_chain_with_var_exp():
+    """B2 through B1: variance_explained = 0 makes the weight 0."""
+    pca_info = {"Za": {"variance_explained": np.float64(0.5)},
+                "Zb": {"variance_explained": np.float64(0.0)},
+                "Zc": {"variance_explained": np.float64(0.25)}}
+    bags = {"Bag_1": _bag([P1, P2, P3])}
+    rankings = {"Bag_1": _ranking([(P1, 0.8), (P2, 0.6), (P3, 0.4)])}
+    g = _build(bags, rankings, var_exp=True, pca_info_dict=pca_info)
+    assert _edges(g) == {(P1, P3): 0.8 * 0.5, (P3, "Class_A"): 0.4 * 0.25}
+    assert g.graph["zero_effect_predicates"] == [P2]
+
+
 def test_weights_accumulate_exactly_across_bags():
     bags = {"Bag_1": _bag([P1, P2]), "Bag_2": _bag([P1, P2]), "Bag_3": _bag([P1, P2])}
     rankings = {b: _ranking([(P1, w), (P2, 0.05)]) for b, w in

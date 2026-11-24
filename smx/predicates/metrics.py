@@ -206,8 +206,11 @@ class PerturbationMetric(BasePredicateMetric):
         - ``'all'``: mean of ``D[:, k]`` over all the predicate's samples
           (already guarded by the bagger).
 
-        Values that are not finite or not strictly positive are NaN (the
-        predicate leaves that class's chain). Only metrics that decompose by
+        NaN means *not evaluated* for that class (below the ``'within'``
+        guard, or not finite): the predicate is left out of that class's
+        rankings. A zero effect stays ``0.0``: the graph builder leaves it out
+        of the chain and it is reported with LRC 0, exactly like in the global
+        ranking. Only metrics that decompose by
         output column are allowed: ``'probability_shift'`` and
         ``'mean_abs_diff'`` (the latter with an ``(n_samples, K)`` output).
         The ``Perturbation`` column and the row order are not affected; the
@@ -510,7 +513,7 @@ class PerturbationMetric(BasePredicateMetric):
         df_info: pd.DataFrame,
         n_zone_features: int,
     ) -> np.ndarray:
-        """Per-class importance of one predicate in one bag (NaN = excluded)."""
+        """Per-class importance of one predicate in one bag (NaN = not evaluated)."""
         D = np.asarray(abs_delta, dtype=float)
         n_classes = len(self.class_labels)
         if D.ndim != 2 or D.shape[1] != n_classes:
@@ -541,7 +544,7 @@ class PerturbationMetric(BasePredicateMetric):
                 v = D[:, j].mean()
             if self.normalize_by_zone_size and n_zone_features > 0:
                 v /= n_zone_features ** self.zone_size_exponent
-            if np.isfinite(v) and v > 0:
+            if np.isfinite(v):  # mean of |delta| >= 0; an exact 0 is kept as 0.0
                 values[j] = v
         return values
 

@@ -35,27 +35,25 @@ def compute_lrc(
     -------
     pd.DataFrame
         Columns: ``Node``, ``Local_Reaching_Centrality``, ``Zone``,
-        ``Threshold``, ``Operator``.  Sorted descending by LRC.
+        ``Threshold``, ``Operator``.  Sorted descending by LRC (stable). The
+        predicates listed in ``graph.graph['zero_effect_predicates']`` (set
+        by :class:`~smx.graph.builder.PredicateGraphBuilder`: evaluated, but
+        with no effect in any bag) are appended with LRC 0.
 
     Raises
     ------
     ValueError
-        If any edge weight is negative or not finite. networkx would otherwise
-        reject the whole graph and every node would silently get LRC 0.
-
-    Notes
-    -----
-    Known limitation (not yet fixed): an edge of weight exactly 0 stored as a
-    Python ``float`` makes networkx raise ``ZeroDivisionError`` for every node
-    whose shortest-path search crosses it, and those nodes get LRC 0. The same
-    edge stored as ``np.float64`` (the ``var_exp=True`` path) yields an
-    infinite distance instead, and the LRC is computed. This only happens with
-    metrics that can be exactly 0 (label-based metrics) and ``var_exp=False``.
+        If any edge weight is not a finite, strictly positive number. The LRC
+        uses ``total_weight / weight`` as edge length, so a zero weight would
+        make the LRC of every node upstream of it meaningless, and a negative
+        one makes networkx reject the whole graph. The builder never creates
+        such edges: it leaves zero-weight predicates out of the chain.
     """
     if verbose:
         print("\nProcessing graph LRC…")
 
-    if graph.number_of_nodes() == 0:
+    zero_effect = list(graph.graph.get("zero_effect_predicates", []))
+    if graph.number_of_nodes() == 0 and not zero_effect:
         return pd.DataFrame(
             columns=["Node", "Local_Reaching_Centrality", "Zone", "Threshold", "Operator"]
         )
@@ -66,18 +64,23 @@ def compute_lrc(
             w_float = float(w)
         except (TypeError, ValueError):
             raise ValueError(f"Edge {u!r} -> {v!r} has a non-numeric weight {w!r}.") from None
-        if not np.isfinite(w_float) or w_float < 0:
+        if not np.isfinite(w_float) or w_float <= 0:
             raise ValueError(
                 f"Edge {u!r} -> {v!r} has an invalid weight {w!r}: LRC needs finite, "
-                f"non-negative weights (a negative weight would make every node's LRC 0)."
+                f"strictly positive weights (PredicateGraphBuilder leaves zero-weight "
+                f"predicates out of the chain instead of adding such an edge)."
             )
 
     lrc_values: Dict[str, float] = {}
-    for node in graph.nodes():
-        try:
+    if graph.number_of_edges() == 0:
+        # Nothing reaches anything (e.g. only terminals): LRC 0 for every node.
+        # networkx would raise "Size of G must be positive" instead.
+        lrc_values = {node: 0.0 for node in graph.nodes()}
+    else:
+        for node in graph.nodes():
             lrc_values[node] = nx.local_reaching_centrality(graph, node, weight="weight")
-        except (ZeroDivisionError, nx.NetworkXError):
-            lrc_values[node] = 0.0
+    for node in zero_effect:
+        lrc_values.setdefault(node, 0.0)
 
     sorted_lrc = sorted(lrc_values.items(), key=lambda x: x[1], reverse=True)
     lrc_df = pd.DataFrame(sorted_lrc, columns=["Node", "Local_Reaching_Centrality"])

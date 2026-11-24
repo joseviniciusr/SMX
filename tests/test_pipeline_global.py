@@ -113,13 +113,51 @@ def test_warns_when_every_global_predicate_has_zero_lrc(known_truth, caplog):
         s = fit_smx(known_truth, ConstantProbaStub())
     msgs = [r.getMessage() for r in caplog.records if "every predicate has LRC 0" in r.getMessage()]
     assert len(msgs) == len(s.valid_seeds_) == 2
+    # B1: the seeds stay valid; every evaluated predicate has a row with LRC 0
+    # (no graph edge at all), every zone is present and there is no terminal row.
+    assert all(g.number_of_edges() == 0 for g in s.graphs_by_seed_.values())
     assert (s.lrc_["Local_Reaching_Centrality"] == 0).all()
+    assert set(s.lrc_["Node"]) <= set(s.predicates_df_["rule"])
+    assert set(s.lrc_unique_["Zone"]) == set(known_truth["zones"])
 
 
 def test_no_zero_lrc_warning_for_an_informative_model(known_truth, caplog):
     with caplog.at_level(logging.WARNING, logger="smx.pipeline"):
         fit_smx(known_truth, known_truth["est"])
     assert not [r for r in caplog.records if "every predicate has LRC 0" in r.getMessage()]
+
+
+@pytest.mark.parametrize("var_exp", [True, False])
+def test_zero_effect_zone_gets_lrc_zero_and_does_not_poison_the_others(known_truth, var_exp):
+    """B1: with var_exp=False the zero effect of Zn used to be a Python-float
+    zero edge, which set the LRC of every predicate upstream of it to 0."""
+    s = fit_smx(known_truth, known_truth["est"], var_exp=var_exp)
+    zone_lrc = s.lrc_unique_.set_index("Zone")["Local_Reaching_Centrality"]
+    assert zone_lrc.loc["Zn"] == 0.0
+    assert (zone_lrc.drop("Zn") > 0).all()
+    for g in s.graphs_by_seed_.values():
+        assert all(d["weight"] > 0 for *_, d in g.edges(data=True))
+        assert any(p.startswith("Zn ") for p in g.graph["zero_effect_predicates"])
+
+
+def test_warns_about_predicates_with_a_non_finite_metric(known_truth, caplog, monkeypatch):
+    """Non-finite metric = not evaluated: left out, no row, and a warning."""
+    from smx.predicates import metrics as metrics_module
+
+    original = metrics_module.PerturbationMetric.compute
+
+    def with_nan(self, bags):
+        out = original(self, bags)
+        for name, rk in out.items():
+            if not name.startswith("__"):
+                rk.loc[rk["Predicate"].str.startswith("Zc "), "Perturbation"] = np.nan
+        return out
+
+    monkeypatch.setattr(metrics_module.PerturbationMetric, "compute", with_nan)
+    with caplog.at_level(logging.WARNING, logger="smx.pipeline"):
+        s = fit_smx(known_truth, known_truth["est"])
+    assert "Zc" not in set(s.lrc_["Zone"])
+    assert any("non-finite perturbation" in r.getMessage() for r in caplog.records)
 
 
 def test_normalized_faithfulness_works_after_a_real_fit(known_truth, fitted_global):
