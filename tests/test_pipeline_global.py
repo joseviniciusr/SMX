@@ -120,10 +120,8 @@ def test_no_zero_lrc_warning_for_an_informative_model(known_truth, caplog):
     assert not [r for r in caplog.records if "every predicate has LRC 0" in r.getMessage()]
 
 
-@pytest.mark.xfail(strict=True, raises=AttributeError,
-                   reason="pre-existing bug: evaluate_normalized_faithfulness reads "
-                          "lrc_summed_unique_/lrc_summed_, which fit() never sets.")
 def test_normalized_faithfulness_works_after_a_real_fit(known_truth, fitted_global):
+    """B4: it used to read lrc_summed_unique_/lrc_summed_, which fit() never sets."""
     s = copy.deepcopy(fitted_global)
     result = s.evaluate_normalized_faithfulness(known_truth["X"], normalization="beam",
                                                 n_random_rankings=3)

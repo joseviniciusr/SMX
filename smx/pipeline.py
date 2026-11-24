@@ -863,8 +863,8 @@ class SMX:
             )
 
         ranking_map = {
-            "unique": self.lrc_summed_unique_,
-            "summed": self.lrc_summed_,
+            "unique": self.lrc_unique_,
+            "summed": self.lrc_,
             "natural": self.lrc_natural_,
         }
         if ranking not in ranking_map:

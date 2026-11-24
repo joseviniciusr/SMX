@@ -175,8 +175,8 @@ def test_pipeline_facade_exposes_normalized_evaluation():
     model = AdditiveProbabilityModel([4, 3, 2, 1])
     explainer = SMX(spectral_cuts=cuts, quantiles=[0.5], estimator=model)
     ranking = _ranking(["z1", "z2", "z3", "z4"])
-    explainer.lrc_summed_unique_ = ranking
-    explainer.lrc_summed_ = ranking.copy()
+    explainer.lrc_unique_ = ranking
+    explainer.lrc_ = ranking.copy()
 
     result = explainer.evaluate_normalized_faithfulness(X, normalization="exact")
 
