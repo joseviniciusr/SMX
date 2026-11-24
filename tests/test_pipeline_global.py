@@ -33,7 +33,9 @@ def test_global_output_schema_for_k_classes(classes, labels):
         assert table["Node"].is_unique
     zones = set(s.lrc_["Zone"].dropna())
     assert zones <= set(data["zones"])
-    assert set(s.lrc_["Node"]) - set(s.predicates_df_["rule"]) <= {f"Class_{c}" for c in labels}
+    assert set(s.lrc_["Node"]) <= set(s.predicates_df_["rule"])   # no terminal rows (B3)
+    assert set(s.lrc_unique_["Zone"]) <= set(data["zones"])
+    assert s.lrc_unique_["Zone"].is_unique
     for g in s.graphs_by_seed_.values():
         terminals = {n for n, a in g.nodes(data=True) if a["node_type"] == "terminal"}
         assert terminals == {f"Class_{c}" for c in labels}

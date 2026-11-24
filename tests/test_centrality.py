@@ -150,8 +150,8 @@ def test_global_aggregation_means_over_present_seeds(lrc_by_seed):
     assert "N_Seeds" not in lrc.columns
 
 
-@pytest.mark.xfail(strict=True, reason="Q3 (deferred): lrc_unique_ deduplicates on Zone and "
-                   "terminal nodes (Zone=None) take part in it.")
-def test_global_unique_table_has_one_row_per_zone_and_no_terminal(lrc_by_seed):
-    _, unique = aggregate_lrc_across_seeds(lrc_by_seed, [0, 1, 2])
+def test_global_tables_have_no_terminal_and_one_row_per_zone(lrc_by_seed):
+    """B3: terminals are dropped after aggregation; other rows keep their order."""
+    lrc, unique = aggregate_lrc_across_seeds(lrc_by_seed, [0, 1, 2])
+    assert not lrc["Node"].str.startswith("Class_").any()
     assert not unique["Node"].str.startswith("Class_").any()

@@ -124,10 +124,11 @@ def aggregate_lrc_across_seeds(
     Returns
     -------
     lrc_df : pd.DataFrame
-        Mean-aggregated LRC for all predicates, sorted descending.
+        Mean-aggregated LRC for all predicates, sorted descending. Terminal
+        nodes (``Class_*``) are not included.
     lrc_unique_df : pd.DataFrame
         Zone-deduplicated version of *lrc_df* (one row per zone),
-        keeping the highest-ranked predicate per zone.
+        keeping the highest-ranked predicate per zone. No terminal rows.
     """
     frames = [lrc_by_seed[seed].copy() for seed in random_seeds if seed in lrc_by_seed]
     if not frames:
@@ -155,7 +156,19 @@ def aggregate_lrc_across_seeds(
         .reset_index(drop=True)
     )
 
+    # Terminal nodes (Class_*) are structural: they stay in the graphs and in
+    # the per-seed tables, but not in the final rankings. They are dropped only
+    # here, after sorting and deduplication, so every other row keeps its value
+    # and position.
+    lrc_df = _drop_terminal_rows(lrc_df)
+    lrc_unique_df = _drop_terminal_rows(lrc_unique_df)
+
     return lrc_df, lrc_unique_df
+
+
+def _drop_terminal_rows(df: pd.DataFrame) -> pd.DataFrame:
+    is_terminal = df["Node"].astype(str).str.startswith("Class_")
+    return df.loc[~is_terminal].reset_index(drop=True)
 
 
 def aggregate_lrc_across_seeds_per_class(

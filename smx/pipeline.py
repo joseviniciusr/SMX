@@ -186,11 +186,10 @@ class SMX:
     are left out of that class's chain, whereas the global chain keeps
     zero-valued predicates.
 
-    *Known limitations of the global output (not yet fixed).* (i)
-    ``lrc_unique_`` deduplicates on ``Zone``, and terminal nodes (``Zone =
-    None``) take part in it. (ii) With ``var_exp=False`` and a metric that can
-    be exactly 0 (label-based metrics), :func:`smx.graph.centrality.compute_lrc`
-    sets the LRC of nodes upstream of a zero-weight edge to 0.
+    *Known limitation of the global output (not yet fixed).* With
+    ``var_exp=False`` and a metric that can be exactly 0 (label-based
+    metrics), :func:`smx.graph.centrality.compute_lrc` sets the LRC of nodes
+    upstream of a zero-weight edge to 0.
 
     Attributes (set after :meth:`fit`)
     ------------------------------------
@@ -200,7 +199,9 @@ class SMX:
         ``Node``, ``Local_Reaching_Centrality``, ``Zone``, ``Threshold``,
         ``Operator``, ``Threshold_Natural``.
     lrc\_ : pd.DataFrame
-        Mean-aggregated LRC across seeds, preprocessed-scale thresholds.
+        Mean-aggregated LRC across seeds, preprocessed-scale thresholds. Only
+        predicate rows: the terminal nodes (``Class_*``) stay in the graphs
+        but not in the final tables (nor in ``lrc_natural_``).
     lrc_unique\_ : pd.DataFrame
         Zone-deduplicated version of *lrc_* (one row per zone).
     zone_scores\_ : pd.DataFrame
